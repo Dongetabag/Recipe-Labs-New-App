@@ -1,0 +1,218 @@
+import React from 'react';
+import { 
+  Home, Users, Briefcase, Mail, MessageSquare, Palette, Folder, Layout, BarChart, Settings, Search, Plus, Zap,
+  Compass, Sparkles, Target, Brain, FlaskConical, ClipboardList, PenTool, FileText, Share2, Award, Zap as ZapIcon, Eye, MousePointer2, TrendingUp, Presentation, Users2
+} from 'lucide-react';
+import { Lead, Client, Campaign, Tool, Recipe } from './types.ts';
+
+export const NAV_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', icon: <Home className="w-5 h-5" /> },
+  { id: 'leads', label: 'Leads', icon: <Layout className="w-5 h-5" /> },
+  { id: 'clients', label: 'Clients', icon: <Briefcase className="w-5 h-5" /> },
+  { id: 'campaigns', label: 'Campaigns', icon: <Mail className="w-5 h-5" /> },
+  { id: 'ai-tools', label: 'AI Tools', icon: <MessageSquare className="w-5 h-5" /> },
+  { id: 'media', label: 'Media', icon: <Palette className="w-5 h-5" /> },
+  { id: 'assets', label: 'Assets', icon: <Folder className="w-5 h-5" /> },
+  { id: 'team', label: 'Team', icon: <Users2 className="w-5 h-5" /> },
+  { id: 'reports', label: 'Reports', icon: <BarChart className="w-5 h-5" /> },
+  { id: 'integrations', label: 'Integrations', icon: <Zap className="w-5 h-5" /> },
+  { id: 'settings', label: 'Settings', icon: <Settings className="w-5 h-5" /> },
+];
+
+export const MOCK_LEADS: Lead[] = [
+  { id: '1', name: 'John Doe', company: 'TechFlow', email: 'john@techflow.com', website: 'techflow.com', status: 'new', score: 85, value: 5000 },
+  { id: '2', name: 'Sarah Smith', company: 'GreenLife', email: 'sarah@greenlife.io', website: 'greenlife.io', status: 'contacted', score: 72, value: 12000 },
+  { id: '3', name: 'Mike Ross', company: 'Z-Global', email: 'mike@zglobal.com', website: 'z-global.com', status: 'qualified', score: 94, value: 25000 },
+  { id: '4', name: 'Emma Vance', company: 'CloudScale', email: 'emma@cloudscale.net', website: 'cloudscale.net', status: 'proposal', score: 60, value: 8000 },
+];
+
+export const MOCK_CLIENTS: Client[] = [
+  { id: 'c1', name: 'Apex Corp', industry: 'SaaS', healthScore: 'green', activeProjects: 3, totalValue: 45000 },
+  { id: 'c2', name: 'Nexus IT', industry: 'Finance', healthScore: 'green', activeProjects: 2, totalValue: 32000 },
+];
+
+export const MOCK_CAMPAIGNS: Campaign[] = [
+  { id: 'camp1', name: 'Q1 Outreach', status: 'active', openRate: 24.5, clickRate: 3.2, sent: 1200 },
+];
+
+export const MOCK_TEAM = [
+  { id: 't1', name: 'Sarah Connor', role: 'Senior Strategist', status: 'active', workload: 85, avatar: 'SC' },
+  { id: 't2', name: 'James Smith', role: 'Content Lead', status: 'away', workload: 40, avatar: 'JS' },
+  { id: 't3', name: 'Elena Rodriguez', role: 'Art Director', status: 'active', workload: 95, avatar: 'ER' },
+  { id: 't4', name: 'Marcus Wong', role: 'Account Manager', status: 'active', workload: 60, avatar: 'MW' },
+];
+
+export const MOCK_ACTIVITY = [
+  { id: 'a1', user: 'Elena Rodriguez', action: 'generated a new visual asset', target: 'Apex Corp', time: '12m ago' },
+  { id: 'a2', user: 'Sarah Connor', action: 'moved lead to Proposal', target: 'Z-Global', time: '1h ago' },
+  { id: 'a3', user: 'System', action: 'automated email sequence triggered', target: 'Q1 Outreach', time: '2h ago' },
+  { id: 'a4', user: 'Marcus Wong', action: 'added a new client', target: 'Nexus IT', time: '4h ago' },
+];
+
+// Added ALL_TOOLS export
+export const ALL_TOOLS: Tool[] = [
+  {
+    id: 'market-insight-ai',
+    name: 'Market Insight AI',
+    description: 'Competitive landscape and industry trend analysis.',
+    category: 'Strategy',
+    icon: <Search className="w-5 h-5" />,
+    gradient: 'from-blue-600 to-cyan-500',
+    systemInstruction: 'You are a market analyst providing strategic insights.'
+  },
+  {
+    id: 'brand-essence-extractor',
+    name: 'Brand Essence Extractor',
+    description: 'Distill brand identity and core messaging.',
+    category: 'Strategy',
+    icon: <Brain className="w-5 h-5" />,
+    gradient: 'from-purple-600 to-pink-500',
+    systemInstruction: 'You are a brand strategist focusing on identity distillation.'
+  },
+  {
+    id: 'campaign-architect',
+    name: 'Campaign Architect',
+    description: 'Design multi-channel campaign skeletons.',
+    category: 'Creation',
+    icon: <Layout className="w-5 h-5" />,
+    gradient: 'from-orange-500 to-red-600',
+    systemInstruction: 'You are a campaign strategist designing high-level marketing architectures.'
+  },
+  {
+    id: 'copycraft-ai',
+    name: 'CopyCraft AI',
+    description: 'High-conversion advertising and social copy.',
+    category: 'Creation',
+    icon: <PenTool className="w-5 h-5" />,
+    gradient: 'from-green-500 to-teal-600',
+    systemInstruction: 'You are a creative copywriter focusing on conversion.'
+  },
+  {
+    id: 'visual-muse',
+    name: 'Visual Muse',
+    description: 'Art direction and visual concept ideation.',
+    category: 'Creation',
+    icon: <Palette className="w-5 h-5" />,
+    gradient: 'from-indigo-500 to-purple-600',
+    systemInstruction: 'You are an art director helping with visual concepts.'
+  },
+  {
+    id: 'pitch-perfect-ai',
+    name: 'Pitch Perfect AI',
+    description: 'Sales deck and client proposal structuring.',
+    category: 'Client',
+    icon: <Award className="w-5 h-5" />,
+    gradient: 'from-yellow-500 to-orange-600',
+    systemInstruction: 'You are a business development expert.'
+  },
+  {
+    id: 'sentiment-analyzer',
+    name: 'Sentiment Analyzer',
+    description: 'Analyze client feedback for emotional context.',
+    category: 'Client',
+    icon: <Eye className="w-5 h-5" />,
+    gradient: 'from-cyan-500 to-blue-600',
+    systemInstruction: 'Analyze provided text for sentiment and core emotional drivers.'
+  },
+  {
+    id: 'client-comms-assistant',
+    name: 'Client Comms Assistant',
+    description: 'Professional client management communication.',
+    category: 'Client',
+    icon: <Mail className="w-5 h-5" />,
+    gradient: 'from-blue-400 to-indigo-500',
+    systemInstruction: 'Draft professional, empathetic, and clear client communications.'
+  },
+  {
+    id: 'project-brief-builder',
+    name: 'Project Brief Builder',
+    description: 'Standardize creative briefs for better delivery.',
+    category: 'Productivity',
+    icon: <FileText className="w-5 h-5" />,
+    gradient: 'from-gray-600 to-gray-800',
+    systemInstruction: 'Structure information into professional creative briefs.'
+  },
+  {
+    id: 'creative-director-ai',
+    name: 'Creative Director AI',
+    description: 'Critical feedback on creative concepts.',
+    category: 'Strategy',
+    icon: <Sparkles className="w-5 h-5" />,
+    gradient: 'from-pink-500 to-rose-600',
+    systemInstruction: 'Provide constructive, high-level creative direction.'
+  },
+  {
+    id: 'client-persona-automator',
+    name: 'Client Persona Automator',
+    description: 'Data-driven buyer persona generation.',
+    category: 'Strategy',
+    icon: <Users className="w-5 h-5" />,
+    gradient: 'from-blue-700 to-indigo-700',
+    systemInstruction: 'Create detailed psychological profiles for target audiences.'
+  },
+  {
+    id: 'seo-content-strategist',
+    name: 'SEO Content Strategist',
+    description: 'Keyword-driven content planning.',
+    category: 'Creation',
+    icon: <TrendingUp className="w-5 h-5" />,
+    gradient: 'from-emerald-500 to-green-700',
+    systemInstruction: 'Design content strategies optimized for search engines.'
+  },
+  {
+    id: 'budget-projection-ai',
+    name: 'Budget Projection AI',
+    description: 'Forecasting media spend and performance.',
+    category: 'Productivity',
+    icon: <ZapIcon className="w-5 h-5" />,
+    gradient: 'from-amber-500 to-yellow-600',
+    systemInstruction: 'Provide data-driven budget allocations and ROI forecasts.'
+  },
+  {
+    id: 'ab-test-copy-generator',
+    name: 'A/B Test Copy Gen',
+    description: 'Generate multivariate copy variations.',
+    category: 'Creation',
+    icon: <MousePointer2 className="w-5 h-5" />,
+    gradient: 'from-violet-500 to-purple-700',
+    systemInstruction: 'Generate distinct A/B test variations for specific messaging goals.'
+  },
+  {
+    id: 'social-calendar-automator',
+    name: 'Social Calendar Automator',
+    description: 'Automated social media scheduling plans.',
+    category: 'Productivity',
+    icon: <ClipboardList className="w-5 h-5" />,
+    gradient: 'from-sky-500 to-blue-500',
+    systemInstruction: 'Plan social media content calendars with engagement-focused hooks.'
+  },
+  {
+    id: 'presentation-weaver-ai',
+    name: 'Presentation Weaver',
+    description: 'Storyline development for complex decks.',
+    category: 'Productivity',
+    icon: <Presentation className="w-5 h-5" />,
+    gradient: 'from-slate-700 to-slate-900',
+    systemInstruction: 'Weave data and insights into compelling presentation narratives.'
+  }
+];
+
+// Added ALL_RECIPES export
+export const ALL_RECIPES: Recipe[] = [
+  {
+    id: 'brand-launch',
+    name: 'Brand Launch Kit',
+    description: 'The standard sequence for new client on-boarding.',
+    icon: <Zap className="w-6 h-6" />,
+    gradient: 'from-brand-violet to-brand-royal-blue',
+    toolIds: ['market-insight-ai', 'brand-essence-extractor', 'campaign-architect']
+  },
+  {
+    id: 'growth-sprint',
+    name: 'Growth Sprint',
+    description: 'Quickly scale performance for existing clients.',
+    icon: <TrendingUp className="w-6 h-6" />,
+    gradient: 'from-brand-neon-green to-brand-aqua',
+    toolIds: ['client-persona-automator', 'seo-content-strategist', 'ab-test-copy-generator']
+  }
+];
