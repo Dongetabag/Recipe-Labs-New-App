@@ -2,42 +2,26 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Lead, Client, Campaign, TeamMember, Activity, Asset, Integration, AppData, DashboardStats
 } from '../types';
-import { supabase } from '../services/supabase';
+import { leadsApiService, LeadFromAPI, PipelineStats } from '../services/leadsApiService';
 
 const STORAGE_KEY = 'recipe-labs-data';
 
-// Map Supabase lead to app Lead type
-const mapSupabaseLead = (dbLead: any): Lead => ({
-  id: dbLead.id,
-  name: dbLead.name || '',
-  company: dbLead.company || '',
-  email: dbLead.email || '',
-  phone: dbLead.phone || undefined,
-  website: dbLead.company_domain || dbLead.linkedin || '',
-  status: dbLead.status || 'new',
-  score: dbLead.score || 0,
-  source: dbLead.source || undefined,
-  notes: dbLead.raw_data?.notes || undefined,
+// Map API lead to app Lead type
+const mapApiLead = (apiLead: LeadFromAPI): Lead => ({
+  id: String(apiLead.id),
+  name: apiLead.name || '',
+  company: apiLead.company || apiLead.name || '',
+  email: apiLead.email || '',
+  phone: apiLead.phone || undefined,
+  website: apiLead.website || '',
+  status: apiLead.status || 'new',
+  score: apiLead.ai_lead_score || 0,
+  source: apiLead.category || undefined,
+  notes: apiLead.ai_insights || undefined,
   lastContactedAt: undefined,
-  value: dbLead.raw_data?.value || 0,
-  createdAt: dbLead.created_at,
-  updatedAt: dbLead.updated_at,
-});
-
-// Map app Lead to Supabase format
-const mapLeadToSupabase = (lead: Partial<Lead>) => ({
-  name: lead.name,
-  company: lead.company,
-  email: lead.email,
-  phone: lead.phone || null,
-  company_domain: lead.website || null,
-  status: lead.status || 'new',
-  score: lead.score || 0,
-  source: lead.source || 'manual',
-  raw_data: {
-    notes: lead.notes,
-    value: lead.value,
-  },
+  value: 0,
+  createdAt: apiLead.created_at || new Date().toISOString(),
+  updatedAt: apiLead.created_at || new Date().toISOString(),
 });
 
 const getInitialData = (): AppData => {
@@ -49,7 +33,7 @@ const getInitialData = (): AppData => {
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
-      // Don't load leads from localStorage - we'll fetch from Supabase
+      // Don't load leads from localStorage - we'll fetch from API
       return { ...parsed, leads: [] };
     } catch {
       return { leads: [], clients: [], campaigns: [], team: [], activities: [], assets: [], integrations: [] };
@@ -60,21 +44,26 @@ const getInitialData = (): AppData => {
 
 export const useDataStore = () => {
   const [data, setData] = useState<AppData>(getInitialData);
+  const [pipelineStats, setPipelineStats] = useState<PipelineStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch leads from Supabase on mount
+  // Fetch leads from Agent API on mount
   useEffect(() => {
     const fetchLeads = async () => {
       try {
-        const { data: dbLeads, error } = await supabase
-          .from('leads')
-          .select('*')
-          .order('created_at', { ascending: false });
+        // Get pipeline stats which includes lead data
+        const stats = await leadsApiService.getPipelineStats();
 
-        if (error) {
-          console.error('Error fetching leads:', error);
-        } else if (dbLeads) {
-          const leads = dbLeads.map(mapSupabaseLead);
+        if (stats) {
+          setPipelineStats(stats);
+
+          // Combine top and recent leads, remove duplicates
+          const allApiLeads = [...(stats.topLeads || []), ...(stats.recentLeads || [])];
+          const uniqueLeads = allApiLeads.filter((lead, index, self) =>
+            index === self.findIndex(l => l.id === lead.id)
+          );
+
+          const leads = uniqueLeads.map(mapApiLead);
           setData(prev => ({ ...prev, leads }));
         }
       } catch (err) {
@@ -88,7 +77,7 @@ export const useDataStore = () => {
     const storedData = getInitialData();
     setData(storedData);
 
-    // Fetch leads from Supabase
+    // Fetch leads from API
     fetchLeads();
   }, []);
 
@@ -103,108 +92,69 @@ export const useDataStore = () => {
   const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const now = () => new Date().toISOString();
 
-  // Leads CRUD - synced with Supabase
+  // Leads CRUD - local only for now (read from API, write locally)
   const addLead = useCallback(async (lead: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>) => {
-    try {
-      const { data: newDbLead, error } = await supabase
-        .from('leads')
-        .insert(mapLeadToSupabase(lead))
-        .select()
-        .single();
+    const localLead: Lead = { ...lead, id: generateId(), createdAt: now(), updatedAt: now() };
+    setData(prev => ({ ...prev, leads: [...prev.leads, localLead] }));
 
-      if (error) {
-        console.error('Error creating lead:', error);
-        // Fallback to local
-        const localLead: Lead = { ...lead, id: generateId(), createdAt: now(), updatedAt: now() };
-        setData(prev => ({ ...prev, leads: [...prev.leads, localLead] }));
-        return localLead;
-      }
+    // Add activity
+    const activity: Activity = {
+      id: generateId(),
+      user: 'You',
+      action: 'added a new lead',
+      target: lead.company,
+      targetType: 'lead',
+      time: 'Just now',
+      createdAt: now()
+    };
+    setData(prev => ({
+      ...prev,
+      activities: [activity, ...prev.activities].slice(0, 50)
+    }));
 
-      const newLead = mapSupabaseLead(newDbLead);
-      setData(prev => ({ ...prev, leads: [...prev.leads, newLead] }));
-
-      // Add activity
-      const activity: Activity = {
-        id: generateId(),
-        user: 'You',
-        action: 'added a new lead',
-        target: lead.company,
-        targetType: 'lead',
-        time: 'Just now',
-        createdAt: now()
-      };
-      setData(prev => ({
-        ...prev,
-        activities: [activity, ...prev.activities].slice(0, 50)
-      }));
-
-      return newLead;
-    } catch (err) {
-      console.error('Failed to create lead:', err);
-      const localLead: Lead = { ...lead, id: generateId(), createdAt: now(), updatedAt: now() };
-      setData(prev => ({ ...prev, leads: [...prev.leads, localLead] }));
-      return localLead;
-    }
+    return localLead;
   }, []);
 
   const updateLead = useCallback(async (id: string, updates: Partial<Lead>) => {
-    // Optimistic update
     setData(prev => ({
       ...prev,
       leads: prev.leads.map(l => l.id === id ? { ...l, ...updates, updatedAt: now() } : l)
     }));
-
-    try {
-      const { error } = await supabase
-        .from('leads')
-        .update({
-          ...mapLeadToSupabase(updates),
-          updated_at: now()
-        })
-        .eq('id', id);
-
-      if (error) {
-        console.error('Error updating lead:', error);
-      }
-    } catch (err) {
-      console.error('Failed to update lead:', err);
-    }
   }, []);
 
   const deleteLead = useCallback(async (id: string) => {
-    // Optimistic delete
     setData(prev => ({ ...prev, leads: prev.leads.filter(l => l.id !== id) }));
-
-    try {
-      const { error } = await supabase
-        .from('leads')
-        .delete()
-        .eq('id', id);
-
-      if (error) {
-        console.error('Error deleting lead:', error);
-      }
-    } catch (err) {
-      console.error('Failed to delete lead:', err);
-    }
   }, []);
 
-  // Refresh leads from Supabase
+  // Refresh leads from API
   const refreshLeads = useCallback(async () => {
     try {
-      const { data: dbLeads, error } = await supabase
-        .from('leads')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const stats = await leadsApiService.getPipelineStats();
 
-      if (error) {
-        console.error('Error refreshing leads:', error);
-      } else if (dbLeads) {
-        const leads = dbLeads.map(mapSupabaseLead);
+      if (stats) {
+        setPipelineStats(stats);
+
+        const allApiLeads = [...(stats.topLeads || []), ...(stats.recentLeads || [])];
+        const uniqueLeads = allApiLeads.filter((lead, index, self) =>
+          index === self.findIndex(l => l.id === lead.id)
+        );
+
+        const leads = uniqueLeads.map(mapApiLead);
         setData(prev => ({ ...prev, leads }));
       }
     } catch (err) {
       console.error('Failed to refresh leads:', err);
+    }
+  }, []);
+
+  // Search leads
+  const searchLeads = useCallback(async (query: string): Promise<Lead[]> => {
+    try {
+      const results = await leadsApiService.searchLeads(query);
+      return results.map(mapApiLead);
+    } catch (err) {
+      console.error('Failed to search leads:', err);
+      return [];
     }
   }, []);
 
@@ -327,10 +277,30 @@ export const useDataStore = () => {
     setData(prev => ({ ...prev, assets: prev.assets.filter(a => a.id !== id) }));
   }, []);
 
-  // Dashboard Stats
+  // Dashboard Stats - use pipeline stats from API
   const getStats = useCallback((): DashboardStats => {
+    // Use API stats if available
+    if (pipelineStats) {
+      const totalLeads = pipelineStats.totalLeads || 0;
+      const qualifiedLeads = pipelineStats.byStatus?.qualified || 0;
+      const activeCampaigns = data.campaigns.filter(c => c.status === 'active').length;
+      const conversionRate = totalLeads > 0 ? (qualifiedLeads / totalLeads) * 100 : 0;
+
+      return {
+        totalLeads,
+        leadsChange: 12, // Placeholder
+        pipelineValue: totalLeads * 500, // Estimate $500 per lead
+        pipelineChange: 8,
+        activeCampaigns,
+        campaignsChange: 0,
+        conversionRate: Math.round(conversionRate * 10) / 10,
+        conversionChange: 5
+      };
+    }
+
+    // Fallback to local data
     const leads = data.leads;
-    const wonLeads = leads.filter(l => l.status === 'won');
+    const wonLeads = leads.filter(l => l.status === 'won' || l.status === 'qualified');
     const totalLeads = leads.length;
     const pipelineValue = leads.reduce((sum, l) => sum + (l.value || 0), 0);
     const activeCampaigns = data.campaigns.filter(c => c.status === 'active').length;
@@ -346,7 +316,7 @@ export const useDataStore = () => {
       conversionRate: Math.round(conversionRate * 10) / 10,
       conversionChange: 0
     };
-  }, [data]);
+  }, [data, pipelineStats]);
 
   // Convert lead to client
   const convertLeadToClient = useCallback((leadId: string) => {
@@ -377,6 +347,7 @@ export const useDataStore = () => {
     activities: data.activities,
     assets: data.assets,
     integrations: data.integrations,
+    pipelineStats,
     isLoading,
 
     // Leads
@@ -384,6 +355,7 @@ export const useDataStore = () => {
     updateLead,
     deleteLead,
     refreshLeads,
+    searchLeads,
 
     // Clients
     addClient,
