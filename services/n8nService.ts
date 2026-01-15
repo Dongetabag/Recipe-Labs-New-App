@@ -190,6 +190,105 @@ class N8NService {
       throw error;
     }
   }
+
+  // Send email via n8n workflow
+  async sendEmail(data: {
+    to: string;
+    subject: string;
+    body: string;
+    from?: string;
+    templateId?: string;
+  }): Promise<ExecutionResult> {
+    try {
+      const webhookUrl = `${this.baseUrl}/webhook/send-email`;
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      return {
+        executionId: `email-${Date.now()}`,
+        status: response.ok ? 'success' : 'error',
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        data: result,
+        error: response.ok ? undefined : 'Email send failed',
+      };
+    } catch (error) {
+      console.error('Email send failed:', error);
+      return {
+        executionId: `email-${Date.now()}`,
+        status: 'error',
+        startedAt: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  // Trigger lead enrichment workflow
+  async enrichLead(leadId: string): Promise<ExecutionResult> {
+    try {
+      const webhookUrl = `${this.baseUrl}/webhook/lead-enrichment`;
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId }),
+      });
+
+      const result = await response.json();
+      return {
+        executionId: `enrich-${Date.now()}`,
+        status: response.ok ? 'success' : 'error',
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        data: result,
+      };
+    } catch (error) {
+      console.error('Lead enrichment failed:', error);
+      return {
+        executionId: `enrich-${Date.now()}`,
+        status: 'error',
+        startedAt: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  // Send Slack notification via n8n
+  async sendSlackNotification(message: string, channel?: string): Promise<ExecutionResult> {
+    try {
+      const webhookUrl = `${this.baseUrl}/webhook/slack-notification`;
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, channel }),
+      });
+
+      const result = await response.json();
+      return {
+        executionId: `slack-${Date.now()}`,
+        status: response.ok ? 'success' : 'error',
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        data: result,
+      };
+    } catch (error) {
+      console.error('Slack notification failed:', error);
+      return {
+        executionId: `slack-${Date.now()}`,
+        status: 'error',
+        startedAt: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  // Chat with AI agent via n8n workflow
+  async agentChat(message: string, context?: any): Promise<ExecutionResult> {
+    return this.executeWorkflow('recipe-labs-agent-chat', { message, context });
+  }
 }
 
 export const n8nService = new N8NService();
