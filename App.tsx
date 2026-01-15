@@ -18,7 +18,7 @@ import IntakeModal, { IntakeData } from './components/IntakeModal.tsx';
 import LoginModal from './components/LoginModal.tsx';
 import { UserProfile } from './types.ts';
 import { useDataStore } from './hooks/useDataStore.ts';
-import { appStore } from './services/appStore.ts';
+import { authService, supabase } from './services/supabase.ts';
 
 const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -31,31 +31,48 @@ const App: React.FC = () => {
   const dataStore = useDataStore();
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('agency_user_profile');
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser);
-        console.log('Restored User Profile:', parsed);
-        setUserProfile(parsed);
+    // Check for existing Supabase session
+    const checkSession = async () => {
+      const { session } = await authService.getSession();
+      if (session?.user) {
+        const profile = await authService.getProfile(session.user.id);
+        const userData: UserProfile = {
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || '',
+          email: session.user.email || '',
+          role: session.user.user_metadata?.role || 'Team Member',
+          agencyCoreCompetency: session.user.user_metadata?.agency_core_competency || '',
+          primaryClientIndustry: session.user.user_metadata?.primary_client_industry || '',
+          agencyBrandVoice: profile.data?.agency_brand_voice || '',
+          targetLocation: profile.data?.target_location || '',
+          idealClientProfile: profile.data?.ideal_client_profile || '',
+          clientWorkExamples: profile.data?.client_work_examples || '',
+          primaryGoals: profile.data?.primary_goals || [],
+          successMetric: profile.data?.success_metric || '',
+          platformTheme: profile.data?.platform_theme || 'violet',
+          toolLayout: profile.data?.tool_layout || 'grid',
+          isPremium: profile.data?.is_premium ?? true,
+          credits: profile.data?.credits ?? 1000,
+          totalToolsUsed: profile.data?.total_tools_used ?? 0,
+          hasCompletedOnboarding: profile.data?.has_completed_onboarding ?? false,
+          themeMode: profile.data?.theme_mode || 'dark',
+        };
+        setUserProfile(userData);
+        // Also save to localStorage for quick access
+        localStorage.setItem('agency_user_profile', JSON.stringify(userData));
+      }
+    };
 
-        // Re-register user in app store to ensure they appear in team
-        if (parsed.name && parsed.email) {
-          appStore.registerUser({
-            name: parsed.name,
-            email: parsed.email,
-            role: parsed.role || 'Team Member',
-            department: parsed.role,
-            title: parsed.role,
-            agencyCoreCompetency: parsed.agencyCoreCompetency,
-            primaryClientIndustry: parsed.primaryClientIndustry,
-            avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(parsed.name)}&backgroundColor=d4a500&textColor=000000`
-          });
-        }
-      } catch (e) {
-        console.error("Failed to parse user profile", e);
+    checkSession();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUserProfile(null);
         localStorage.removeItem('agency_user_profile');
       }
-    }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleShowLogin = () => setShowLogin(true);
@@ -91,41 +108,57 @@ const App: React.FC = () => {
     setActiveModule('dashboard');
   };
 
-  const handleIntakeSubmit = (data: IntakeData) => {
+  const handleIntakeSubmit = async (data: IntakeData) => {
     console.log('Processing Intake Submission in App:', data);
 
-    const newUser: UserProfile = {
-      ...data,
-      isPremium: true,
-      credits: 1000,
-      totalToolsUsed: 0,
-      hasCompletedOnboarding: false,
-      themeMode: 'dark',
-    };
+    try {
+      // Register user with Supabase
+      const result = await authService.signUp(data.email, data.password, {
+        name: data.name,
+        role: data.role || 'Team Member',
+        avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(data.name)}&backgroundColor=d4a500&textColor=000000`,
+        agency_core_competency: data.agencyCoreCompetency,
+        primary_client_industry: data.primaryClientIndustry,
+      });
 
-    // Register user in app store with password
-    const result = appStore.registerUserWithPassword({
-      name: data.name,
-      email: data.email,
-      role: data.role || 'Team Member',
-      department: data.role,
-      title: data.role,
-      agencyCoreCompetency: data.agencyCoreCompetency,
-      primaryClientIndustry: data.primaryClientIndustry,
-      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(data.name)}&backgroundColor=d4a500&textColor=000000`
-    }, data.password);
+      if (!result.success) {
+        console.error('Registration failed:', result.error);
+        alert(result.error);
+        return;
+      }
 
-    if (!result.success) {
-      console.error('Registration failed:', result.error);
-      alert(result.error);
-      return;
+      // Update profile with additional data
+      if (result.user) {
+        await authService.updateProfile(result.user.id, {
+          agency_brand_voice: data.agencyBrandVoice,
+          target_location: data.targetLocation,
+          ideal_client_profile: data.idealClientProfile,
+          client_work_examples: data.clientWorkExamples,
+          primary_goals: data.primaryGoals,
+          success_metric: data.successMetric,
+          platform_theme: data.platformTheme,
+          tool_layout: data.toolLayout,
+        });
+      }
+
+      const newUser: UserProfile = {
+        ...data,
+        isPremium: true,
+        credits: 1000,
+        totalToolsUsed: 0,
+        hasCompletedOnboarding: false,
+        themeMode: 'dark',
+      };
+
+      // Force immediate transition
+      localStorage.setItem('agency_user_profile', JSON.stringify(newUser));
+      setUserProfile(newUser);
+      setShowIntake(false);
+      setActiveModule('dashboard');
+    } catch (err: any) {
+      console.error('Registration error:', err);
+      alert(err.message || 'Registration failed. Please try again.');
     }
-
-    // Force immediate transition
-    localStorage.setItem('agency_user_profile', JSON.stringify(newUser));
-    setUserProfile(newUser);
-    setShowIntake(false);
-    setActiveModule('dashboard');
   };
 
   const renderModule = () => {
@@ -219,8 +252,8 @@ const App: React.FC = () => {
         setActiveModule={setActiveModule} 
         collapsed={sidebarCollapsed} 
         setCollapsed={setSidebarCollapsed}
-        onLogout={() => {
-          appStore.logout();
+        onLogout={async () => {
+          await authService.signOut();
           localStorage.removeItem('agency_user_profile');
           setUserProfile(null);
           setActiveModule('dashboard');

@@ -2,8 +2,43 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Lead, Client, Campaign, TeamMember, Activity, Asset, Integration, AppData, DashboardStats
 } from '../types';
+import { supabase } from '../services/supabase';
 
 const STORAGE_KEY = 'recipe-labs-data';
+
+// Map Supabase lead to app Lead type
+const mapSupabaseLead = (dbLead: any): Lead => ({
+  id: dbLead.id,
+  name: dbLead.name || '',
+  company: dbLead.company || '',
+  email: dbLead.email || '',
+  phone: dbLead.phone || undefined,
+  website: dbLead.company_domain || dbLead.linkedin || '',
+  status: dbLead.status || 'new',
+  score: dbLead.score || 0,
+  source: dbLead.source || undefined,
+  notes: dbLead.raw_data?.notes || undefined,
+  lastContactedAt: undefined,
+  value: dbLead.raw_data?.value || 0,
+  createdAt: dbLead.created_at,
+  updatedAt: dbLead.updated_at,
+});
+
+// Map app Lead to Supabase format
+const mapLeadToSupabase = (lead: Partial<Lead>) => ({
+  name: lead.name,
+  company: lead.company,
+  email: lead.email,
+  phone: lead.phone || null,
+  company_domain: lead.website || null,
+  status: lead.status || 'new',
+  score: lead.score || 0,
+  source: lead.source || 'manual',
+  raw_data: {
+    notes: lead.notes,
+    value: lead.value,
+  },
+});
 
 const getInitialData = (): AppData => {
   if (typeof window === 'undefined') {
@@ -13,7 +48,9 @@ const getInitialData = (): AppData => {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      // Don't load leads from localStorage - we'll fetch from Supabase
+      return { ...parsed, leads: [] };
     } catch {
       return { leads: [], clients: [], campaigns: [], team: [], activities: [], assets: [], integrations: [] };
     }
@@ -25,44 +62,169 @@ export const useDataStore = () => {
   const [data, setData] = useState<AppData>(getInitialData);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Fetch leads from Supabase on mount
   useEffect(() => {
-    setData(getInitialData());
-    setIsLoading(false);
+    const fetchLeads = async () => {
+      try {
+        const { data: dbLeads, error } = await supabase
+          .from('leads')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching leads:', error);
+        } else if (dbLeads) {
+          const leads = dbLeads.map(mapSupabaseLead);
+          setData(prev => ({ ...prev, leads }));
+        }
+      } catch (err) {
+        console.error('Failed to fetch leads:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Load other data from localStorage
+    const storedData = getInitialData();
+    setData(storedData);
+
+    // Fetch leads from Supabase
+    fetchLeads();
   }, []);
 
+  // Save non-lead data to localStorage
   useEffect(() => {
     if (!isLoading) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      const { leads, ...otherData } = data;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...otherData, leads: [] }));
     }
   }, [data, isLoading]);
 
   const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const now = () => new Date().toISOString();
 
-  // Leads CRUD
-  const addLead = useCallback((lead: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newLead: Lead = { ...lead, id: generateId(), createdAt: now(), updatedAt: now() };
-    setData(prev => ({ ...prev, leads: [...prev.leads, newLead] }));
-    addActivity({ user: 'You', action: 'added a new lead', target: lead.company, targetType: 'lead' });
-    return newLead;
+  // Leads CRUD - synced with Supabase
+  const addLead = useCallback(async (lead: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      const { data: newDbLead, error } = await supabase
+        .from('leads')
+        .insert(mapLeadToSupabase(lead))
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating lead:', error);
+        // Fallback to local
+        const localLead: Lead = { ...lead, id: generateId(), createdAt: now(), updatedAt: now() };
+        setData(prev => ({ ...prev, leads: [...prev.leads, localLead] }));
+        return localLead;
+      }
+
+      const newLead = mapSupabaseLead(newDbLead);
+      setData(prev => ({ ...prev, leads: [...prev.leads, newLead] }));
+
+      // Add activity
+      const activity: Activity = {
+        id: generateId(),
+        user: 'You',
+        action: 'added a new lead',
+        target: lead.company,
+        targetType: 'lead',
+        time: 'Just now',
+        createdAt: now()
+      };
+      setData(prev => ({
+        ...prev,
+        activities: [activity, ...prev.activities].slice(0, 50)
+      }));
+
+      return newLead;
+    } catch (err) {
+      console.error('Failed to create lead:', err);
+      const localLead: Lead = { ...lead, id: generateId(), createdAt: now(), updatedAt: now() };
+      setData(prev => ({ ...prev, leads: [...prev.leads, localLead] }));
+      return localLead;
+    }
   }, []);
 
-  const updateLead = useCallback((id: string, updates: Partial<Lead>) => {
+  const updateLead = useCallback(async (id: string, updates: Partial<Lead>) => {
+    // Optimistic update
     setData(prev => ({
       ...prev,
       leads: prev.leads.map(l => l.id === id ? { ...l, ...updates, updatedAt: now() } : l)
     }));
+
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({
+          ...mapLeadToSupabase(updates),
+          updated_at: now()
+        })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error updating lead:', error);
+      }
+    } catch (err) {
+      console.error('Failed to update lead:', err);
+    }
   }, []);
 
-  const deleteLead = useCallback((id: string) => {
+  const deleteLead = useCallback(async (id: string) => {
+    // Optimistic delete
     setData(prev => ({ ...prev, leads: prev.leads.filter(l => l.id !== id) }));
+
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting lead:', error);
+      }
+    } catch (err) {
+      console.error('Failed to delete lead:', err);
+    }
+  }, []);
+
+  // Refresh leads from Supabase
+  const refreshLeads = useCallback(async () => {
+    try {
+      const { data: dbLeads, error } = await supabase
+        .from('leads')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error refreshing leads:', error);
+      } else if (dbLeads) {
+        const leads = dbLeads.map(mapSupabaseLead);
+        setData(prev => ({ ...prev, leads }));
+      }
+    } catch (err) {
+      console.error('Failed to refresh leads:', err);
+    }
   }, []);
 
   // Clients CRUD
   const addClient = useCallback((client: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>) => {
     const newClient: Client = { ...client, id: generateId(), createdAt: now(), updatedAt: now() };
     setData(prev => ({ ...prev, clients: [...prev.clients, newClient] }));
-    addActivity({ user: 'You', action: 'added a new client', target: client.name, targetType: 'client' });
+    const activity: Activity = {
+      id: generateId(),
+      user: 'You',
+      action: 'added a new client',
+      target: client.name,
+      targetType: 'client',
+      time: 'Just now',
+      createdAt: now()
+    };
+    setData(prev => ({
+      ...prev,
+      activities: [activity, ...prev.activities].slice(0, 50)
+    }));
     return newClient;
   }, []);
 
@@ -81,7 +243,19 @@ export const useDataStore = () => {
   const addCampaign = useCallback((campaign: Omit<Campaign, 'id' | 'createdAt' | 'updatedAt'>) => {
     const newCampaign: Campaign = { ...campaign, id: generateId(), createdAt: now(), updatedAt: now() };
     setData(prev => ({ ...prev, campaigns: [...prev.campaigns, newCampaign] }));
-    addActivity({ user: 'You', action: 'created a new campaign', target: campaign.name, targetType: 'campaign' });
+    const activity: Activity = {
+      id: generateId(),
+      user: 'You',
+      action: 'created a new campaign',
+      target: campaign.name,
+      targetType: 'campaign',
+      time: 'Just now',
+      createdAt: now()
+    };
+    setData(prev => ({
+      ...prev,
+      activities: [activity, ...prev.activities].slice(0, 50)
+    }));
     return newCampaign;
   }, []);
 
@@ -124,7 +298,7 @@ export const useDataStore = () => {
     };
     setData(prev => ({
       ...prev,
-      activities: [newActivity, ...prev.activities].slice(0, 50) // Keep last 50 activities
+      activities: [newActivity, ...prev.activities].slice(0, 50)
     }));
     return newActivity;
   }, []);
@@ -133,7 +307,19 @@ export const useDataStore = () => {
   const addAsset = useCallback((asset: Omit<Asset, 'id' | 'createdAt' | 'updatedAt'>) => {
     const newAsset: Asset = { ...asset, id: generateId(), createdAt: now(), updatedAt: now() };
     setData(prev => ({ ...prev, assets: [...prev.assets, newAsset] }));
-    addActivity({ user: 'You', action: 'uploaded an asset', target: asset.name, targetType: 'asset' });
+    const activity: Activity = {
+      id: generateId(),
+      user: 'You',
+      action: 'uploaded an asset',
+      target: asset.name,
+      targetType: 'asset',
+      time: 'Just now',
+      createdAt: now()
+    };
+    setData(prev => ({
+      ...prev,
+      activities: [activity, ...prev.activities].slice(0, 50)
+    }));
     return newAsset;
   }, []);
 
@@ -146,13 +332,13 @@ export const useDataStore = () => {
     const leads = data.leads;
     const wonLeads = leads.filter(l => l.status === 'won');
     const totalLeads = leads.length;
-    const pipelineValue = leads.reduce((sum, l) => sum + l.value, 0);
+    const pipelineValue = leads.reduce((sum, l) => sum + (l.value || 0), 0);
     const activeCampaigns = data.campaigns.filter(c => c.status === 'active').length;
     const conversionRate = totalLeads > 0 ? (wonLeads.length / totalLeads) * 100 : 0;
 
     return {
       totalLeads,
-      leadsChange: 0, // Would calculate from historical data
+      leadsChange: 0,
       pipelineValue,
       pipelineChange: 0,
       activeCampaigns,
@@ -174,7 +360,7 @@ export const useDataStore = () => {
       industry: 'General',
       healthScore: 'green',
       activeProjects: 0,
-      totalValue: lead.value
+      totalValue: lead.value || 0
     });
 
     updateLead(leadId, { status: 'won' });
@@ -197,6 +383,7 @@ export const useDataStore = () => {
     addLead,
     updateLead,
     deleteLead,
+    refreshLeads,
 
     // Clients
     addClient,
