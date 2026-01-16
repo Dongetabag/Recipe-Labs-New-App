@@ -18,7 +18,7 @@ import IntakeModal, { IntakeData } from './components/IntakeModal.tsx';
 import LoginModal from './components/LoginModal.tsx';
 import { UserProfile } from './types.ts';
 import { useDataStore } from './hooks/useDataStore.ts';
-import { authService, supabase } from './services/supabase.ts';
+import { authService } from './services/authService.ts';
 
 const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -26,53 +26,65 @@ const App: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showIntake, setShowIntake] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Data store for all app data
   const dataStore = useDataStore();
 
   useEffect(() => {
-    // Check for existing Supabase session
+    // Check for existing session (SQLite-based auth)
     const checkSession = async () => {
-      const { session } = await authService.getSession();
-      if (session?.user) {
-        const profile = await authService.getProfile(session.user.id);
-        const userData: UserProfile = {
-          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || '',
-          email: session.user.email || '',
-          role: session.user.user_metadata?.role || 'Team Member',
-          agencyCoreCompetency: session.user.user_metadata?.agency_core_competency || '',
-          primaryClientIndustry: session.user.user_metadata?.primary_client_industry || '',
-          agencyBrandVoice: profile.data?.agency_brand_voice || '',
-          targetLocation: profile.data?.target_location || '',
-          idealClientProfile: profile.data?.ideal_client_profile || '',
-          clientWorkExamples: profile.data?.client_work_examples || '',
-          primaryGoals: profile.data?.primary_goals || [],
-          successMetric: profile.data?.success_metric || '',
-          platformTheme: profile.data?.platform_theme || 'violet',
-          toolLayout: profile.data?.tool_layout || 'grid',
-          isPremium: profile.data?.is_premium ?? true,
-          credits: profile.data?.credits ?? 1000,
-          totalToolsUsed: profile.data?.total_tools_used ?? 0,
-          hasCompletedOnboarding: profile.data?.has_completed_onboarding ?? false,
-          themeMode: profile.data?.theme_mode || 'dark',
-        };
-        setUserProfile(userData);
-        // Also save to localStorage for quick access
-        localStorage.setItem('agency_user_profile', JSON.stringify(userData));
+      // First try to load from localStorage for instant UI
+      const storedProfile = localStorage.getItem('agency_user_profile');
+      if (storedProfile) {
+        try {
+          const parsed = JSON.parse(storedProfile);
+          setUserProfile(parsed);
+        } catch (e) {
+          console.error('Failed to parse stored profile');
+        }
+      }
+
+      // Validate session with backend
+      if (authService.isAuthenticated()) {
+        const result = await authService.validateSession();
+        if (result.success && result.user) {
+          // Get profile data from backend
+          const profiles = result.profiles || {};
+          const settings = profiles.settings || {};
+          const dashboard = profiles.dashboard || {};
+
+          const userData: UserProfile = {
+            name: result.user.name || result.user.email?.split('@')[0] || '',
+            email: result.user.email || '',
+            role: settings.role || 'Team Member',
+            agencyCoreCompetency: settings.agency_core_competency || '',
+            primaryClientIndustry: settings.primary_client_industry || '',
+            agencyBrandVoice: settings.agency_brand_voice || '',
+            targetLocation: settings.target_location || '',
+            idealClientProfile: settings.ideal_client_profile || '',
+            clientWorkExamples: settings.client_work_examples || '',
+            primaryGoals: settings.primary_goals || [],
+            successMetric: settings.success_metric || '',
+            platformTheme: dashboard.theme || 'violet',
+            toolLayout: dashboard.layout || 'grid',
+            isPremium: settings.is_premium ?? true,
+            credits: settings.credits ?? 1000,
+            totalToolsUsed: settings.total_tools_used ?? 0,
+            hasCompletedOnboarding: settings.has_completed_onboarding ?? false,
+            themeMode: dashboard.themeMode || 'dark',
+          };
+          setUserProfile(userData);
+          localStorage.setItem('agency_user_profile', JSON.stringify(userData));
+        } else {
+          // Session invalid, clear local data
+          setUserProfile(null);
+          localStorage.removeItem('agency_user_profile');
+        }
       }
     };
 
     checkSession();
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT') {
-        setUserProfile(null);
-        localStorage.removeItem('agency_user_profile');
-      }
-    });
-
-    return () => subscription.unsubscribe();
   }, []);
 
   const handleShowLogin = () => setShowLogin(true);
@@ -112,14 +124,8 @@ const App: React.FC = () => {
     console.log('Processing Intake Submission in App:', data);
 
     try {
-      // Register user with Supabase
-      const result = await authService.signUp(data.email, data.password, {
-        name: data.name,
-        role: data.role || 'Team Member',
-        avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(data.name)}&backgroundColor=d4a500&textColor=000000`,
-        agency_core_competency: data.agencyCoreCompetency,
-        primary_client_industry: data.primaryClientIndustry,
-      });
+      // Register user with SQLite backend
+      const result = await authService.signup(data.email, data.password, data.name);
 
       if (!result.success) {
         console.error('Registration failed:', result.error);
@@ -127,17 +133,31 @@ const App: React.FC = () => {
         return;
       }
 
-      // Update profile with additional data
+      // Save profile data to backend
       if (result.user) {
-        await authService.updateProfile(result.user.id, {
+        // Save settings module data
+        await authService.saveModuleData('settings', {
+          role: data.role || 'Team Member',
+          agency_core_competency: data.agencyCoreCompetency,
+          primary_client_industry: data.primaryClientIndustry,
           agency_brand_voice: data.agencyBrandVoice,
           target_location: data.targetLocation,
           ideal_client_profile: data.idealClientProfile,
           client_work_examples: data.clientWorkExamples,
           primary_goals: data.primaryGoals,
           success_metric: data.successMetric,
-          platform_theme: data.platformTheme,
-          tool_layout: data.toolLayout,
+          is_premium: true,
+          credits: 1000,
+          total_tools_used: 0,
+          has_completed_onboarding: true,
+        });
+
+        // Save dashboard preferences
+        await authService.saveModuleData('dashboard', {
+          theme: data.platformTheme || 'violet',
+          layout: data.toolLayout || 'grid',
+          themeMode: 'dark',
+          widgets: [],
         });
       }
 
@@ -146,7 +166,7 @@ const App: React.FC = () => {
         isPremium: true,
         credits: 1000,
         totalToolsUsed: 0,
-        hasCompletedOnboarding: false,
+        hasCompletedOnboarding: true,
         themeMode: 'dark',
       };
 
@@ -247,20 +267,25 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-brand-dark selection:bg-brand-gold selection:text-black">
-      <Sidebar 
-        activeModule={activeModule} 
-        setActiveModule={setActiveModule} 
-        collapsed={sidebarCollapsed} 
+      <Sidebar
+        activeModule={activeModule}
+        setActiveModule={(id) => {
+          setActiveModule(id);
+          setMobileMenuOpen(false); // Close mobile menu on navigation
+        }}
+        collapsed={sidebarCollapsed}
         setCollapsed={setSidebarCollapsed}
+        mobileOpen={mobileMenuOpen}
+        setMobileOpen={setMobileMenuOpen}
         onLogout={async () => {
-          await authService.signOut();
+          await authService.logout();
           localStorage.removeItem('agency_user_profile');
           setUserProfile(null);
           setActiveModule('dashboard');
         }}
       />
       <div className="flex-1 flex flex-col min-w-0">
-        <TopBar user={userProfile} />
+        <TopBar user={userProfile} onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)} />
         <main className="flex-1 overflow-y-auto bg-brand-dark scrollbar-hide">
           {renderModule()}
         </main>

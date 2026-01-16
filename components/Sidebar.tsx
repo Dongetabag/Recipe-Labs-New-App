@@ -1,18 +1,35 @@
 import React from 'react';
 import { NAV_ITEMS } from '../constants.tsx';
-import { LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LogOut, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 interface SidebarProps {
   activeModule: string;
   setActiveModule: (id: string) => void;
   collapsed: boolean;
   setCollapsed: (val: boolean) => void;
+  mobileOpen?: boolean;
+  setMobileOpen?: (val: boolean) => void;
   onLogout: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeModule, setActiveModule, collapsed, setCollapsed, onLogout }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeModule, setActiveModule, collapsed, setCollapsed, mobileOpen, setMobileOpen, onLogout }) => {
+  // Mobile drawer overlay
+  const mobileOverlay = mobileOpen && (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+      onClick={() => setMobileOpen?.(false)}
+    />
+  );
+
   return (
-    <aside className={`h-screen border-r border-white/5 bg-brand-dark transition-all duration-300 flex flex-col z-50 ${collapsed ? 'w-20' : 'w-64'}`}>
+    <>
+      {mobileOverlay}
+      <aside className={`
+        h-screen border-r border-white/5 bg-brand-dark transition-all duration-300 flex flex-col
+        ${collapsed ? 'w-20' : 'w-64'}
+        fixed md:relative z-50
+        ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
       <div className="p-6 flex items-center justify-between">
         {!collapsed && (
           <h1 className="text-xl font-bold font-orbitron tracking-widest text-brand-gold">
@@ -20,6 +37,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeModule, setActiveModule, collap
           </h1>
         )}
         {collapsed && <div className="w-8 h-8 bg-brand-gold rounded-lg flex items-center justify-center text-black font-bold">R</div>}
+        {/* Mobile close button */}
+        <button
+          className="md:hidden p-2 text-gray-400 hover:text-white"
+          onClick={() => setMobileOpen?.(false)}
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       <nav className="flex-grow px-3 space-y-1 mt-4">
@@ -42,9 +66,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeModule, setActiveModule, collap
       </nav>
 
       <div className="p-4 border-t border-white/5 space-y-2">
+        {/* Hide collapse on mobile */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="w-full flex items-center gap-4 p-3 text-gray-500 hover:text-white transition-colors rounded-xl hover:bg-white/5"
+          className="hidden md:flex w-full items-center gap-4 p-3 text-gray-500 hover:text-white transition-colors rounded-xl hover:bg-white/5"
         >
           {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
           {!collapsed && <span className="text-sm">Collapse</span>}
@@ -58,6 +83,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeModule, setActiveModule, collap
         </button>
       </div>
     </aside>
+    </>
   );
 };
 

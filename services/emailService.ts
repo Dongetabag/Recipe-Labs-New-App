@@ -1,7 +1,8 @@
 // Recipe Labs Email Service
-// Handles email sending via n8n workflows
+// Handles email sending via Resend API (primary) and n8n workflows (fallback)
 
 import { n8nService } from './n8nService';
+import { resendService, ResendEmailData, ResendResponse } from './resendService';
 
 const N8N_API_URL = import.meta.env.VITE_N8N_API_URL || 'https://n8n.srv1167160.hstgr.cloud';
 
@@ -38,13 +39,47 @@ export interface EmailTrackingData {
 
 class EmailService {
   private n8nUrl: string;
+  private useResend: boolean;
 
   constructor(n8nUrl: string = N8N_API_URL) {
     this.n8nUrl = n8nUrl;
+    this.useResend = resendService.isConfigured();
   }
 
-  // Send a single email via n8n
+  // Check if Resend is available
+  isResendConfigured(): boolean {
+    return resendService.isConfigured();
+  }
+
+  // Send a single email (Resend primary, n8n fallback)
   async sendEmail(data: EmailData): Promise<EmailResult> {
+    // Try Resend first if configured
+    if (this.useResend) {
+      try {
+        const resendResult = await resendService.sendEmail({
+          to: data.to,
+          subject: data.subject,
+          html: data.html || data.body,
+          text: data.body,
+          from: data.from,
+          replyTo: data.replyTo,
+        });
+
+        if (resendResult.success) {
+          return {
+            success: true,
+            messageId: resendResult.id,
+            timestamp: new Date().toISOString(),
+          };
+        }
+
+        console.warn('Resend failed, falling back to n8n:', resendResult.error);
+      } catch (error) {
+        console.warn('Resend error, falling back to n8n:', error);
+      }
+    }
+
+    // Fallback to n8n
     try {
       const result = await n8nService.sendEmail({
         to: Array.isArray(data.to) ? data.to.join(',') : data.to,
@@ -68,6 +103,11 @@ class EmailService {
         timestamp: new Date().toISOString(),
       };
     }
+  }
+
+  // Send email via Resend directly
+  async sendViaResend(data: ResendEmailData): Promise<ResendResponse> {
+    return resendService.sendEmail(data);
   }
 
   // Send bulk emails via n8n workflow
@@ -185,4 +225,5 @@ class EmailService {
 }
 
 export const emailService = new EmailService();
+export { resendService } from './resendService';
 export default emailService;

@@ -52,7 +52,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, stats, onNavigate }
     const generateBriefing = async () => {
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const leadsInfo = apiStats ? `Current pipeline: ${apiStats.total_leads} leads (${apiStats.by_status.qualified || 0} qualified, ${apiStats.by_status.new || 0} new).` : '';
+        const leadsInfo = apiStats ? `Current pipeline: ${apiStats.totalLeads} leads (${apiStats.byStatus?.qualified || 0} qualified, ${apiStats.byStatus?.new || 0} new).` : '';
         const { greeting, period } = getTimeOfDayGreeting();
         const response = await ai.models.generateContent({
           model: 'gemini-2.0-flash',
@@ -95,9 +95,9 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, stats, onNavigate }
   };
 
   // Use live API stats if available, otherwise fall back to local stats
-  const liveLeadsCount = apiStats?.total_leads || stats.totalLeads;
-  const liveQualified = apiStats?.by_status?.qualified || 0;
-  const liveNew = apiStats?.by_status?.new || 0;
+  const liveLeadsCount = apiStats?.totalLeads || stats.totalLeads;
+  const liveQualified = apiStats?.byStatus?.qualified || 0;
+  const liveNew = apiStats?.byStatus?.new || 0;
 
   const statCards = [
     {
@@ -141,7 +141,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, stats, onNavigate }
   });
 
   return (
-    <div className="p-8 space-y-8 animate-fadeIn">
+    <div className="p-4 md:p-8 space-y-6 md:space-y-8 animate-fadeIn">
       {/* System Status Banner */}
       {healthStatus && (
         <div className="flex items-center gap-4 p-4 bg-green-500/10 border border-green-500/20 rounded-2xl">
@@ -160,7 +160,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, stats, onNavigate }
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row gap-8">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8">
         <div className="flex-1 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-3xl font-bold text-white font-orbitron">Systems Overview</h2>
@@ -289,11 +289,11 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, stats, onNavigate }
           </div>
 
           {/* Category Breakdown */}
-          {apiStats?.by_category && (
+          {apiStats?.topCategories && (
             <div className="glass p-4 rounded-2xl">
               <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Top Categories</h4>
               <div className="space-y-2">
-                {Object.entries(apiStats.by_category)
+                {Object.entries(apiStats.topCategories)
                   .sort(([,a], [,b]) => b - a)
                   .slice(0, 5)
                   .map(([category, count]) => (

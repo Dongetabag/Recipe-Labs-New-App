@@ -81,9 +81,9 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ leads, addLead, updateLead, d
 
   if (leads.length === 0 && !showAddModal) {
     return (
-      <div className="p-8 h-full flex flex-col">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-white font-orbitron">Lead Pipeline</h2>
+      <div className="p-4 md:p-8 h-full flex flex-col">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+          <h2 className="text-xl md:text-2xl font-bold text-white font-orbitron">Lead Pipeline</h2>
           <button
             onClick={() => setShowAddModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-brand-gold text-black font-bold text-sm rounded-lg hover:scale-105 transition-all"
@@ -110,8 +110,8 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ leads, addLead, updateLead, d
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">Contact Name *</label>
                 <input
@@ -136,7 +136,7 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ leads, addLead, updateLead, d
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">Email *</label>
                 <input
@@ -171,7 +171,7 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ leads, addLead, updateLead, d
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">Status</label>
                 <select
@@ -254,18 +254,18 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ leads, addLead, updateLead, d
   }
 
   return (
-    <div className="p-8 h-full flex flex-col space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white font-orbitron">Lead Pipeline</h2>
-        <div className="flex items-center gap-3">
+    <div className="p-4 md:p-8 h-full flex flex-col space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h2 className="text-xl md:text-2xl font-bold text-white font-orbitron">Lead Pipeline</h2>
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input
               type="text"
-              placeholder="Search leads..."
+              placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:border-brand-gold focus:outline-none w-48"
+              className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:border-brand-gold focus:outline-none w-32 sm:w-48"
             />
           </div>
           <div className="flex p-1 bg-white/5 rounded-lg border border-white/10">
@@ -284,9 +284,9 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ leads, addLead, updateLead, d
           </div>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-brand-gold text-black font-bold text-sm rounded-lg hover:scale-105 transition-all"
+            className="flex items-center gap-2 px-3 md:px-4 py-2 bg-brand-gold text-black font-bold text-sm rounded-lg hover:scale-105 transition-all"
           >
-            <Plus className="w-4 h-4" /> Add Lead
+            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Add Lead</span><span className="sm:hidden">Add</span>
           </button>
         </div>
       </div>

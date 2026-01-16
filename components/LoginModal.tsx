@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, LogIn, Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
-import { authService } from '../services/supabase.ts';
+import { authService } from '../services/authService.ts';
 
 interface LoginModalProps {
   show: boolean;
@@ -24,20 +24,22 @@ const LoginModal: React.FC<LoginModalProps> = ({ show, onClose, onSuccess, onSwi
     setIsLoading(true);
 
     try {
-      const result = await authService.signIn(email, password);
+      const result = await authService.login(email, password);
 
       if (result.success && result.user) {
-        // Get user metadata and profile
-        const profile = await authService.getProfile(result.user.id);
+        // Get profile data from backend
+        const profiles = await authService.getAllProfiles();
+        const settings = profiles.settings || {};
+
         const userData = {
           id: result.user.id,
           email: result.user.email,
-          name: result.user.user_metadata?.name || email.split('@')[0],
-          role: result.user.user_metadata?.role || 'Team Member',
-          avatar: result.user.user_metadata?.avatar,
-          agencyCoreCompetency: result.user.user_metadata?.agency_core_competency,
-          primaryClientIndustry: result.user.user_metadata?.primary_client_industry,
-          ...profile.data
+          name: result.user.name || email.split('@')[0],
+          role: settings.role || 'Team Member',
+          avatar: result.user.avatar_url,
+          agencyCoreCompetency: settings.agency_core_competency,
+          primaryClientIndustry: settings.primary_client_industry,
+          ...settings
         };
         onSuccess(userData);
       } else {
