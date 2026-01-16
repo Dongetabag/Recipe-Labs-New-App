@@ -1,224 +1,174 @@
+// Session Memory Hook
+// Provides persistent session state management across page reloads
+// Remembers user preferences, last visited module, and UI state
+
 import { useState, useEffect, useCallback } from 'react';
 
-export interface SessionMessage {
-  role: 'user' | 'model';
-  text: string;
-  timestamp: string;
+const SESSION_MEMORY_KEY = 'recipe-labs-session-memory';
+
+export interface SessionMemory {
+  lastActiveModule: string;
+  sidebarCollapsed: boolean;
+  lastVisitedModules: string[];
+  recentSearches: string[];
+  pinnedItems: string[];
+  uiPreferences: {
+    compactMode: boolean;
+    animationsEnabled: boolean;
+    notificationsEnabled: boolean;
+  };
+  moduleStates: Record<string, any>;
+  lastActivity: string;
 }
 
-export interface Session {
-  id: string;
-  title: string;
-  moduleId: string;
-  messages: SessionMessage[];
-  metadata?: Record<string, any>;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface SessionMemoryData {
-  sessions: Session[];
-  activeSessionId: string | null;
-}
-
-const MAX_MESSAGES_PER_SESSION = 25;
-const STORAGE_PREFIX = 'recipe-labs-sessions-';
-
-// Generate unique ID
-const generateId = () => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-// Generate title from first message
-const generateTitle = (text: string, maxLength: number = 40): string => {
-  const cleaned = text.replace(/\s+/g, ' ').trim();
-  return cleaned.length > maxLength ? cleaned.substring(0, maxLength) + '...' : cleaned;
+const DEFAULT_SESSION: SessionMemory = {
+  lastActiveModule: 'dashboard',
+  sidebarCollapsed: false,
+  lastVisitedModules: [],
+  recentSearches: [],
+  pinnedItems: [],
+  uiPreferences: {
+    compactMode: false,
+    animationsEnabled: true,
+    notificationsEnabled: true,
+  },
+  moduleStates: {},
+  lastActivity: new Date().toISOString(),
 };
 
-/**
- * Hook for managing session memory across modules
- * @param moduleId - Unique identifier for the module (e.g., 'tools-headline-generator', 'email-playbook')
- */
-export function useSessionMemory(moduleId: string) {
-  const storageKey = `${STORAGE_PREFIX}${moduleId}`;
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-
-  // Get active session
-  const activeSession = sessions.find(s => s.id === activeSessionId);
-  const messages = activeSession?.messages || [];
-
-  // Load from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        const data: SessionMemoryData = JSON.parse(stored);
-        if (data.sessions && Array.isArray(data.sessions)) {
-          setSessions(data.sessions);
-          setActiveSessionId(data.activeSessionId || (data.sessions.length > 0 ? data.sessions[0].id : null));
-        }
-      }
-    } catch (e) {
-      console.error(`Failed to load sessions for ${moduleId}:`, e);
+const getStoredSession = (): SessionMemory => {
+  if (typeof window === 'undefined') return DEFAULT_SESSION;
+  
+  try {
+    const stored = localStorage.getItem(SESSION_MEMORY_KEY);
+    if (stored) {
+      return { ...DEFAULT_SESSION, ...JSON.parse(stored) };
     }
-  }, [storageKey, moduleId]);
+  } catch (e) {
+    console.error('Failed to parse session memory:', e);
+  }
+  return DEFAULT_SESSION;
+};
 
-  // Save to localStorage whenever sessions change
+export const useSessionMemory = () => {
+  const [session, setSession] = useState<SessionMemory>(getStoredSession);
+
+  // Persist to localStorage on changes
   useEffect(() => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify({
-        sessions,
-        activeSessionId
+    localStorage.setItem(SESSION_MEMORY_KEY, JSON.stringify(session));
+  }, [session]);
+
+  // Update last activity periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSession(prev => ({
+        ...prev,
+        lastActivity: new Date().toISOString()
       }));
-    } catch (e) {
-      console.error(`Failed to save sessions for ${moduleId}:`, e);
-    }
-  }, [sessions, activeSessionId, storageKey, moduleId]);
+    }, 60000); // Update every minute
 
-  // Create a new session
-  const createSession = useCallback((title?: string, metadata?: Record<string, any>) => {
-    const newSession: Session = {
-      id: generateId(),
-      title: title || 'New Chat',
-      moduleId,
-      messages: [],
-      metadata,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    setSessions(prev => [newSession, ...prev]);
-    setActiveSessionId(newSession.id);
-    return newSession.id;
-  }, [moduleId]);
+    return () => clearInterval(interval);
+  }, []);
 
-  // Delete a session
-  const deleteSession = useCallback((sessionId: string) => {
-    setSessions(prev => {
-      const updated = prev.filter(s => s.id !== sessionId);
-      if (activeSessionId === sessionId) {
-        setActiveSessionId(updated.length > 0 ? updated[0].id : null);
-      }
-      return updated;
+  // Track module navigation
+  const trackModuleVisit = useCallback((moduleId: string) => {
+    setSession(prev => {
+      const visited = [moduleId, ...prev.lastVisitedModules.filter(m => m !== moduleId)].slice(0, 10);
+      return {
+        ...prev,
+        lastActiveModule: moduleId,
+        lastVisitedModules: visited,
+        lastActivity: new Date().toISOString(),
+      };
     });
-  }, [activeSessionId]);
-
-  // Rename a session
-  const renameSession = useCallback((sessionId: string, newTitle: string) => {
-    setSessions(prev => prev.map(s =>
-      s.id === sessionId
-        ? { ...s, title: newTitle.trim() || 'Untitled', updatedAt: new Date().toISOString() }
-        : s
-    ));
   }, []);
 
-  // Switch to a session
-  const switchSession = useCallback((sessionId: string) => {
-    setActiveSessionId(sessionId);
+  // Track search queries
+  const trackSearch = useCallback((query: string) => {
+    if (!query.trim()) return;
+    setSession(prev => {
+      const searches = [query, ...prev.recentSearches.filter(s => s !== query)].slice(0, 10);
+      return { ...prev, recentSearches: searches };
+    });
   }, []);
 
-  // Add a message to the active session
-  const addMessage = useCallback((role: 'user' | 'model', text: string) => {
-    if (!activeSessionId) {
-      // Auto-create a session if none exists
-      const newSessionId = createSession();
-      // Need to update the new session with the message
-      setSessions(prev => prev.map(s => {
-        if (s.id === newSessionId) {
-          const newMessages = [...s.messages, { role, text, timestamp: new Date().toISOString() }];
-          let title = s.title;
-          if (title === 'New Chat' && role === 'user') {
-            title = generateTitle(text);
-          }
-          return {
-            ...s,
-            messages: newMessages.slice(-MAX_MESSAGES_PER_SESSION),
-            title,
-            updatedAt: new Date().toISOString()
-          };
-        }
-        return s;
-      }));
-      return;
-    }
+  // Clear search history
+  const clearSearchHistory = useCallback(() => {
+    setSession(prev => ({ ...prev, recentSearches: [] }));
+  }, []);
 
-    setSessions(prev => prev.map(s => {
-      if (s.id === activeSessionId) {
-        const newMessages = [...s.messages, { role, text, timestamp: new Date().toISOString() }];
-        let title = s.title;
-        if (title === 'New Chat' && role === 'user') {
-          title = generateTitle(text);
-        }
-        return {
-          ...s,
-          messages: newMessages.slice(-MAX_MESSAGES_PER_SESSION),
-          title,
-          updatedAt: new Date().toISOString()
-        };
-      }
-      return s;
+  // Toggle sidebar
+  const setSidebarCollapsed = useCallback((collapsed: boolean) => {
+    setSession(prev => ({ ...prev, sidebarCollapsed: collapsed }));
+  }, []);
+
+  // Pin/unpin items
+  const togglePinned = useCallback((itemId: string) => {
+    setSession(prev => {
+      const isPinned = prev.pinnedItems.includes(itemId);
+      const pinnedItems = isPinned
+        ? prev.pinnedItems.filter(id => id !== itemId)
+        : [...prev.pinnedItems, itemId];
+      return { ...prev, pinnedItems };
+    });
+  }, []);
+
+  // Update UI preferences
+  const updateUIPreferences = useCallback((prefs: Partial<SessionMemory['uiPreferences']>) => {
+    setSession(prev => ({
+      ...prev,
+      uiPreferences: { ...prev.uiPreferences, ...prefs }
     }));
-  }, [activeSessionId, createSession]);
+  }, []);
 
-  // Update all messages in the active session
-  const updateMessages = useCallback((newMessages: SessionMessage[]) => {
-    if (!activeSessionId) return;
-
-    const limitedMessages = newMessages.slice(-MAX_MESSAGES_PER_SESSION);
-
-    setSessions(prev => prev.map(s => {
-      if (s.id === activeSessionId) {
-        let title = s.title;
-        if (title === 'New Chat' && limitedMessages.length > 0) {
-          const firstUserMsg = limitedMessages.find(m => m.role === 'user');
-          if (firstUserMsg) {
-            title = generateTitle(firstUserMsg.text);
-          }
-        }
-        return { ...s, messages: limitedMessages, title, updatedAt: new Date().toISOString() };
-      }
-      return s;
+  // Save module-specific state (e.g., scroll position, filters, etc.)
+  const saveModuleState = useCallback((moduleId: string, state: any) => {
+    setSession(prev => ({
+      ...prev,
+      moduleStates: { ...prev.moduleStates, [moduleId]: state }
     }));
-  }, [activeSessionId]);
+  }, []);
 
-  // Clear messages in active session
-  const clearMessages = useCallback(() => {
-    if (!activeSessionId) return;
-    setSessions(prev => prev.map(s =>
-      s.id === activeSessionId
-        ? { ...s, messages: [], updatedAt: new Date().toISOString() }
-        : s
-    ));
-  }, [activeSessionId]);
+  // Get module-specific state
+  const getModuleState = useCallback((moduleId: string) => {
+    return session.moduleStates[moduleId] || null;
+  }, [session.moduleStates]);
 
-  // Update session metadata
-  const updateMetadata = useCallback((metadata: Record<string, any>) => {
-    if (!activeSessionId) return;
-    setSessions(prev => prev.map(s =>
-      s.id === activeSessionId
-        ? { ...s, metadata: { ...s.metadata, ...metadata }, updatedAt: new Date().toISOString() }
-        : s
-    ));
-  }, [activeSessionId]);
+  // Reset session to defaults
+  const resetSession = useCallback(() => {
+    setSession(DEFAULT_SESSION);
+    localStorage.removeItem(SESSION_MEMORY_KEY);
+  }, []);
+
+  // Check if session is stale (no activity for 24 hours)
+  const isSessionStale = useCallback(() => {
+    const lastActivity = new Date(session.lastActivity);
+    const now = new Date();
+    const hoursSinceActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60);
+    return hoursSinceActivity > 24;
+  }, [session.lastActivity]);
 
   return {
     // State
-    sessions,
-    activeSession,
-    activeSessionId,
-    messages,
+    session,
+    lastActiveModule: session.lastActiveModule,
+    sidebarCollapsed: session.sidebarCollapsed,
+    recentSearches: session.recentSearches,
+    pinnedItems: session.pinnedItems,
+    uiPreferences: session.uiPreferences,
 
     // Actions
-    createSession,
-    deleteSession,
-    renameSession,
-    switchSession,
-    addMessage,
-    updateMessages,
-    clearMessages,
-    updateMetadata,
-
-    // Utilities
-    maxMessages: MAX_MESSAGES_PER_SESSION
+    trackModuleVisit,
+    trackSearch,
+    clearSearchHistory,
+    setSidebarCollapsed,
+    togglePinned,
+    updateUIPreferences,
+    saveModuleState,
+    getModuleState,
+    resetSession,
+    isSessionStale,
   };
-}
+};
 
 export default useSessionMemory;

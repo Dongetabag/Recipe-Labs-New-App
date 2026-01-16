@@ -19,6 +19,7 @@ import LoginModal from './components/LoginModal.tsx';
 import { UserProfile } from './types.ts';
 import { useDataStore } from './hooks/useDataStore.ts';
 import { authService } from './services/authService.ts';
+import { appStore } from './services/appStore.ts';
 
 const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -31,6 +32,22 @@ const App: React.FC = () => {
   // Data store for all app data
   const dataStore = useDataStore();
 
+  // Helper to sync user to team (appStore)
+  const syncUserToTeam = (profile: UserProfile) => {
+    if (profile.name && profile.email) {
+      appStore.registerUser({
+        name: profile.name,
+        email: profile.email,
+        role: profile.role || 'Team Member',
+        department: profile.role,
+        title: profile.role,
+        agencyCoreCompetency: profile.agencyCoreCompetency,
+        primaryClientIndustry: profile.primaryClientIndustry,
+        avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(profile.name)}&backgroundColor=d4a500&textColor=000000`
+      });
+    }
+  };
+
   useEffect(() => {
     // Check for existing session (SQLite-based auth)
     const checkSession = async () => {
@@ -40,6 +57,8 @@ const App: React.FC = () => {
         try {
           const parsed = JSON.parse(storedProfile);
           setUserProfile(parsed);
+          // Sync to team on restore
+          syncUserToTeam(parsed);
         } catch (e) {
           console.error('Failed to parse stored profile');
         }
@@ -76,6 +95,8 @@ const App: React.FC = () => {
           };
           setUserProfile(userData);
           localStorage.setItem('agency_user_profile', JSON.stringify(userData));
+          // Sync to team on session validate
+          syncUserToTeam(userData);
         } else {
           // Session invalid, clear local data
           setUserProfile(null);
@@ -93,7 +114,7 @@ const App: React.FC = () => {
   const handleLoginSuccess = (user: any) => {
     console.log('Login successful:', user);
 
-    const userProfile: UserProfile = {
+    const profile: UserProfile = {
       name: user.name,
       email: user.email,
       role: user.role || 'Strategist',
@@ -114,8 +135,10 @@ const App: React.FC = () => {
       themeMode: 'dark',
     };
 
-    localStorage.setItem('agency_user_profile', JSON.stringify(userProfile));
-    setUserProfile(userProfile);
+    localStorage.setItem('agency_user_profile', JSON.stringify(profile));
+    setUserProfile(profile);
+    // Sync to team on login
+    syncUserToTeam(profile);
     setShowLogin(false);
     setActiveModule('dashboard');
   };
@@ -173,6 +196,8 @@ const App: React.FC = () => {
       // Force immediate transition
       localStorage.setItem('agency_user_profile', JSON.stringify(newUser));
       setUserProfile(newUser);
+      // Sync to team on signup
+      syncUserToTeam(newUser);
       setShowIntake(false);
       setActiveModule('dashboard');
     } catch (err: any) {
@@ -279,6 +304,7 @@ const App: React.FC = () => {
         setMobileOpen={setMobileMenuOpen}
         onLogout={async () => {
           await authService.logout();
+          appStore.logout();
           localStorage.removeItem('agency_user_profile');
           setUserProfile(null);
           setActiveModule('dashboard');

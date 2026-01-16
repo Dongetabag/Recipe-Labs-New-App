@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { X, LogIn, Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
-import { authService } from '../services/authService.ts';
+import React, { useState, useEffect } from 'react';
+import { X, LogIn, Mail, Lock, AlertCircle, Eye, EyeOff, Users } from 'lucide-react';
+import { authService, TeamUser } from '../services/authService.ts';
 
 interface LoginModalProps {
   show: boolean;
@@ -15,6 +15,27 @@ const LoginModal: React.FC<LoginModalProps> = ({ show, onClose, onSuccess, onSwi
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [registeredUsers, setRegisteredUsers] = useState<TeamUser[]>([]);
+  const [showUserList, setShowUserList] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  // Load registered users when modal opens
+  useEffect(() => {
+    if (show) {
+      const fetchUsers = async () => {
+        setLoadingUsers(true);
+        try {
+          const users = await authService.getUsers();
+          setRegisteredUsers(users);
+        } catch (err) {
+          console.error('Failed to fetch users:', err);
+        } finally {
+          setLoadingUsers(false);
+        }
+      };
+      fetchUsers();
+    }
+  }, [show]);
 
   if (!show) return null;
 
@@ -52,6 +73,11 @@ const LoginModal: React.FC<LoginModalProps> = ({ show, onClose, onSuccess, onSwi
     setIsLoading(false);
   };
 
+  const handleQuickLogin = (userEmail: string) => {
+    setEmail(userEmail);
+    setShowUserList(false);
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden">
       <div className="absolute inset-0 bg-brand-dark/95 backdrop-blur-xl animate-fadeIn" onClick={onClose} />
@@ -79,6 +105,50 @@ const LoginModal: React.FC<LoginModalProps> = ({ show, onClose, onSuccess, onSwi
             <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm animate-shake">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {/* Quick User Select */}
+          {registeredUsers.length > 0 && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowUserList(!showUserList)}
+                className="flex items-center gap-2 text-xs text-brand-gold hover:text-brand-gold/80 transition-colors"
+              >
+                <Users className="w-4 h-4" />
+                <span>{showUserList ? 'Hide' : 'Show'} team members ({registeredUsers.length})</span>
+              </button>
+
+              {showUserList && (
+                <div className="bg-white/5 rounded-xl p-2 max-h-40 overflow-y-auto space-y-1">
+                  {loadingUsers ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="w-5 h-5 border-2 border-brand-gold/30 border-t-brand-gold rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    registeredUsers.map((user) => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => handleQuickLogin(user.email)}
+                        className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors text-left"
+                      >
+                        <img
+                          src={user.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}&backgroundColor=d4a500&textColor=000000`}
+                          alt={user.name}
+                          className="w-8 h-8 rounded-full bg-brand-gold/20"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white truncate">{user.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                        </div>
+                        <span className="text-[10px] text-gray-600 bg-white/5 px-2 py-0.5 rounded">{user.role}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           )}
 

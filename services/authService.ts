@@ -13,6 +13,14 @@ export interface User {
   role: string;
 }
 
+export interface TeamUser {
+  id: number;
+  name: string;
+  email: string;
+  avatar?: string;
+  role?: string;
+}
+
 export interface AuthResponse {
   success: boolean;
   user?: User;
@@ -93,6 +101,33 @@ class AuthService {
   // Get current token
   getToken(): string | null {
     return this.token;
+  }
+
+  // Get all registered users (for quick login and team display)
+  async getUsers(): Promise<TeamUser[]> {
+    try {
+      const response = await fetch(`${AGENT_API_URL}/api/v1/auth/users`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.users) {
+          return data.users.map((u: any) => ({
+            id: u.id,
+            name: u.name || u.email?.split('@')[0] || 'User',
+            email: u.email,
+            avatar: u.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u.name || u.email)}&backgroundColor=d4a500&textColor=000000`,
+            role: u.role || 'Team Member'
+          }));
+        }
+      }
+      return [];
+    } catch (error) {
+      console.error('Get users error:', error);
+      return [];
+    }
   }
 
   // Sign up new user
