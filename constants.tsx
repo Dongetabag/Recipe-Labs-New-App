@@ -18,7 +18,7 @@ export const NAV_ITEMS = [
   { id: 'team', label: 'Team', icon: <Users2 className="w-5 h-5" /> },
   { id: 'reports', label: 'Reports', icon: <BarChart className="w-5 h-5" /> },
   { id: 'integrations', label: 'Integrations', icon: <Zap className="w-5 h-5" /> },
-  { id: 'flash-ui', label: 'Flash UI', icon: <Wand2 className="w-5 h-5" /> },
+  { id: 'flash-ui', label: 'Secret Sauce', icon: <Wand2 className="w-5 h-5" /> },
   { id: 'settings', label: 'Settings', icon: <Settings className="w-5 h-5" /> },
 ];
 

@@ -1,14 +1,14 @@
 /**
- * FlashUI Module for Recipe Labs
+ * Secret Sauce - Recipe Labs
  * AI-Powered UI Component Generator using Gemini
- * Adapted from Flash UI by @ammaar with Recipe Labs branding
+ * Your secret ingredient for stunning UI designs
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { UserProfile } from '../types.ts';
 import {
   Send, Sparkles, Code, Grid3X3, ArrowLeft, ArrowRight,
-  ArrowUp, Loader2, X, Wand2, Palette, Layers
+  ArrowUp, Loader2, X, Wand2, Palette, Layers, Download, Image, FileCode, Copy, Check
 } from 'lucide-react';
 
 // Types
@@ -68,10 +68,12 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
   const [inputValue, setInputValue] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const [drawerState, setDrawerState] = useState<{
     isOpen: boolean;
-    mode: 'code' | 'variations' | null;
+    mode: 'code' | 'variations' | 'download' | null;
     title: string;
     data: any;
   }>({ isOpen: false, mode: null, title: '', data: null });
@@ -80,6 +82,7 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const gridScrollRef = useRef<HTMLDivElement>(null);
+  const previewIframeRef = useRef<HTMLIFrameElement>(null);
 
   // Focus input on mount
   useEffect(() => {
@@ -94,41 +97,167 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
     return () => clearInterval(interval);
   }, []);
 
-  // JSON stream parser
-  const parseJsonStream = async function* (responseStream: AsyncGenerator<{ text: string }>) {
-    let buffer = '';
-    for await (const chunk of responseStream) {
-      const text = chunk.text;
-      if (typeof text !== 'string') continue;
-      buffer += text;
-      let braceCount = 0;
-      let start = buffer.indexOf('{');
-      while (start !== -1) {
-        braceCount = 0;
-        let end = -1;
-        for (let i = start; i < buffer.length; i++) {
-          if (buffer[i] === '{') braceCount++;
-          else if (buffer[i] === '}') braceCount--;
-          if (braceCount === 0 && i > start) {
-            end = i;
-            break;
-          }
+  // Download code as HTML file
+  const handleDownloadCode = useCallback((html: string, filename: string) => {
+    const fullHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${filename} - Recipe Labs Secret Sauce</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+  </style>
+</head>
+<body>
+${html}
+</body>
+</html>`;
+
+    const blob = new Blob([fullHtml], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, []);
+
+  // Download preview as PNG image
+  const handleDownloadPreview = useCallback(async (html: string, filename: string) => {
+    setIsDownloading(true);
+    try {
+      // Create a temporary iframe to render the HTML
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.left = '-9999px';
+      iframe.style.width = '800px';
+      iframe.style.height = '600px';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+
+      // Write the HTML content
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iframeDoc) throw new Error('Could not access iframe document');
+
+      iframeDoc.open();
+      iframeDoc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: 'Inter', -apple-system, sans-serif; background: #0a0a0a; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+          </style>
+        </head>
+        <body>${html}</body>
+        </html>
+      `);
+      iframeDoc.close();
+
+      // Wait for content to render
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Use html2canvas if available, otherwise use native canvas approach
+      try {
+        // Try to capture using canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = 800;
+        canvas.height = 600;
+        const ctx = canvas.getContext('2d');
+
+        if (ctx) {
+          // Draw background
+          ctx.fillStyle = '#0a0a0a';
+          ctx.fillRect(0, 0, 800, 600);
+
+          // Create SVG from HTML
+          const svgData = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600">
+              <foreignObject width="100%" height="100%">
+                <div xmlns="http://www.w3.org/1999/xhtml" style="font-family: Inter, sans-serif; background: #0a0a0a; width: 800px; height: 600px; display: flex; align-items: center; justify-content: center;">
+                  ${html}
+                </div>
+              </foreignObject>
+            </svg>
+          `;
+
+          const img = new window.Image();
+          const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+          const svgUrl = URL.createObjectURL(svgBlob);
+
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => {
+              ctx.drawImage(img, 0, 0);
+              URL.revokeObjectURL(svgUrl);
+              resolve();
+            };
+            img.onerror = () => {
+              URL.revokeObjectURL(svgUrl);
+              reject(new Error('Failed to load SVG'));
+            };
+            img.src = svgUrl;
+          });
+
+          // Download the canvas as PNG
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `${filename.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-preview.png`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+            }
+          }, 'image/png');
         }
-        if (end !== -1) {
-          const jsonString = buffer.substring(start, end + 1);
-          try {
-            yield JSON.parse(jsonString);
-            buffer = buffer.substring(end + 1);
-            start = buffer.indexOf('{');
-          } catch (e) {
-            start = buffer.indexOf('{', start + 1);
-          }
-        } else {
-          break;
-        }
+      } catch (canvasError) {
+        console.log('Canvas capture failed, falling back to HTML download');
+        // Fallback: Download as HTML with screenshot instructions
+        handleDownloadCode(html, filename + '-preview');
       }
+
+      document.body.removeChild(iframe);
+    } catch (error) {
+      console.error('Preview download error:', error);
+      // Fallback to downloading HTML
+      handleDownloadCode(html, filename);
+    } finally {
+      setIsDownloading(false);
     }
-  };
+  }, [handleDownloadCode]);
+
+  // Copy code to clipboard
+  const handleCopyCode = useCallback(async (html: string) => {
+    try {
+      await navigator.clipboard.writeText(html);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }, []);
+
+  // Show download options
+  const handleShowDownload = useCallback(() => {
+    const currentSession = sessions[currentSessionIndex];
+    if (currentSession && focusedArtifactIndex !== null) {
+      const artifact = currentSession.artifacts[focusedArtifactIndex];
+      setDrawerState({
+        isOpen: true,
+        mode: 'download',
+        title: 'Download Options',
+        data: { html: artifact.html, name: artifact.styleName, prompt: currentSession.prompt }
+      });
+    }
+  }, [sessions, currentSessionIndex, focusedArtifactIndex]);
 
   // Generate variations
   const handleGenerateVariations = useCallback(async () => {
@@ -158,7 +287,6 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
       }
     } catch (e: any) {
       console.error("Error generating variations:", e);
-      // Fallback: show single current design
       setComponentVariations([{ name: 'Current Design', html: currentArtifact.html }]);
     } finally {
       setIsLoading(false);
@@ -217,7 +345,6 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
     setFocusedArtifactIndex(null);
 
     try {
-      // Call Recipe Labs API for Flash UI generation
       const response = await fetch('/api/v1/agent/flash-generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -232,7 +359,6 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
 
       const data = await response.json();
 
-      // Update with generated styles
       if (data.styles && Array.isArray(data.styles)) {
         setSessions(prev => prev.map(s => {
           if (s.id !== sessionId) return s;
@@ -248,8 +374,7 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
         }));
       }
     } catch (e) {
-      console.error("Flash UI Error:", e);
-      // Fallback: Generate simple placeholder HTML
+      console.error("Secret Sauce Error:", e);
       const fallbackStyles = [
         { name: 'Minimal Gold', html: generateFallbackHTML(trimmedInput, 'minimal') },
         { name: 'Bold Forest', html: generateFallbackHTML(trimmedInput, 'bold') },
@@ -281,7 +406,7 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
         <div style="font-family: 'Inter', sans-serif; padding: 40px; background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%); min-height: 300px; display: flex; align-items: center; justify-content: center;">
           <div style="text-align: center; max-width: 400px;">
             <div style="width: 60px; height: 60px; background: #F5D547; border-radius: 12px; margin: 0 auto 24px; display: flex; align-items: center; justify-content: center;">
-              <span style="font-size: 24px;">✨</span>
+              <span style="font-size: 24px;">&#10024;</span>
             </div>
             <h2 style="color: white; font-size: 24px; margin: 0 0 12px; font-weight: 600;">${prompt}</h2>
             <p style="color: #888; font-size: 14px; margin: 0 0 24px;">Recipe Labs UI Component</p>
@@ -306,7 +431,7 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
           <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(20px); border-radius: 24px; padding: 40px; max-width: 400px; border: 1px solid rgba(255,255,255,0.2);">
             <h2 style="color: white; font-size: 24px; margin: 0 0 12px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">${prompt}</h2>
             <p style="color: rgba(255,255,255,0.8); font-size: 14px; margin: 0 0 24px;">Premium glass morphism design</p>
-            <button style="background: white; color: #0a0a0a; border: none; padding: 14px 32px; border-radius: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">Explore →</button>
+            <button style="background: white; color: #0a0a0a; border: none; padding: 14px 32px; border-radius: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">Explore &#8594;</button>
           </div>
         </div>
       `,
@@ -391,11 +516,105 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
                   Designing variations...
                 </div>
               )}
+
+              {/* Code View */}
               {drawerState.mode === 'code' && (
-                <pre className="bg-black/50 p-4 rounded-xl border border-white/10 text-xs text-green-400 overflow-x-auto whitespace-pre-wrap">
-                  <code>{drawerState.data}</code>
-                </pre>
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleCopyCode(drawerState.data)}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white/10 border border-white/10 text-white rounded-xl text-sm font-medium hover:bg-white/20 transition-all touch-manipulation"
+                    >
+                      {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                      {copied ? 'Copied!' : 'Copy Code'}
+                    </button>
+                    <button
+                      onClick={() => handleDownloadCode(drawerState.data, currentSession?.prompt || 'component')}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-brand-gold text-black rounded-xl text-sm font-medium hover:bg-brand-gold/90 transition-all touch-manipulation"
+                    >
+                      <FileCode className="w-4 h-4" />
+                      Download HTML
+                    </button>
+                  </div>
+                  <pre className="bg-black/50 p-4 rounded-xl border border-white/10 text-xs text-green-400 overflow-x-auto whitespace-pre-wrap">
+                    <code>{drawerState.data}</code>
+                  </pre>
+                </div>
               )}
+
+              {/* Download Options */}
+              {drawerState.mode === 'download' && (
+                <div className="space-y-4">
+                  <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+                    <div className="h-48 bg-black overflow-hidden">
+                      <iframe
+                        srcDoc={drawerState.data.html}
+                        title="Preview"
+                        sandbox="allow-scripts allow-same-origin"
+                        className="w-[200%] h-[200%] border-none pointer-events-none origin-top-left scale-50"
+                      />
+                    </div>
+                    <div className="p-4 border-t border-white/10 bg-black/20">
+                      <p className="text-sm text-white font-medium">{drawerState.data.name}</p>
+                      <p className="text-xs text-gray-500 mt-1 truncate">{drawerState.data.prompt}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => handleDownloadCode(drawerState.data.html, drawerState.data.name)}
+                      className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:border-white/20 transition-all touch-manipulation"
+                    >
+                      <div className="w-12 h-12 bg-brand-gold/20 rounded-xl flex items-center justify-center">
+                        <FileCode className="w-6 h-6 text-brand-gold" />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="text-white font-medium">Download HTML</p>
+                        <p className="text-xs text-gray-500">Complete HTML file with inline styles</p>
+                      </div>
+                      <Download className="w-5 h-5 text-gray-400" />
+                    </button>
+
+                    <button
+                      onClick={() => handleDownloadPreview(drawerState.data.html, drawerState.data.name)}
+                      disabled={isDownloading}
+                      className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:border-white/20 transition-all touch-manipulation disabled:opacity-50"
+                    >
+                      <div className="w-12 h-12 bg-brand-forest/20 rounded-xl flex items-center justify-center">
+                        {isDownloading ? (
+                          <Loader2 className="w-6 h-6 text-brand-forest animate-spin" />
+                        ) : (
+                          <Image className="w-6 h-6 text-brand-forest" />
+                        )}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="text-white font-medium">Download Preview</p>
+                        <p className="text-xs text-gray-500">PNG image of the component</p>
+                      </div>
+                      <Download className="w-5 h-5 text-gray-400" />
+                    </button>
+
+                    <button
+                      onClick={() => handleCopyCode(drawerState.data.html)}
+                      className="w-full flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:border-white/20 transition-all touch-manipulation"
+                    >
+                      <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center">
+                        {copied ? (
+                          <Check className="w-6 h-6 text-green-400" />
+                        ) : (
+                          <Copy className="w-6 h-6 text-gray-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="text-white font-medium">{copied ? 'Copied!' : 'Copy to Clipboard'}</p>
+                        <p className="text-xs text-gray-500">Copy HTML code to clipboard</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Variations */}
               {drawerState.mode === 'variations' && (
                 <div className="space-y-4">
                   {componentVariations.map((v, i) => (
@@ -434,11 +653,11 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
               <div className="w-20 h-20 mx-auto bg-brand-gold/10 border border-brand-gold/20 rounded-2xl flex items-center justify-center">
                 <Wand2 className="w-10 h-10 text-brand-gold" />
               </div>
-              <h1 className="text-4xl sm:text-6xl font-bold text-white bg-gradient-to-br from-white to-gray-400 bg-clip-text text-transparent">
-                Flash UI
+              <h1 className="text-4xl sm:text-6xl font-bold text-white bg-gradient-to-br from-brand-gold to-brand-gold/70 bg-clip-text text-transparent">
+                Secret Sauce
               </h1>
               <p className="text-lg text-gray-400 max-w-md mx-auto">
-                AI-powered UI generation for Recipe Labs
+                Your secret ingredient for stunning UI designs
               </p>
             </div>
             <button
@@ -508,6 +727,7 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
                           </div>
                         )}
                         <iframe
+                          ref={isFocused ? previewIframeRef : null}
                           srcDoc={artifact.html}
                           title={artifact.id}
                           sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"
@@ -547,25 +767,31 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
           <div className="text-sm text-gray-400 bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full max-w-xs truncate">
             {currentSession?.prompt}
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3 flex-wrap justify-center">
             <button
               onClick={() => setFocusedArtifactIndex(null)}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/10 text-white rounded-full text-sm font-medium hover:bg-white/20 transition-all touch-manipulation"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/10 text-white rounded-full text-sm font-medium hover:bg-white/20 transition-all touch-manipulation"
             >
               <Grid3X3 className="w-4 h-4" /> Grid
             </button>
             <button
               onClick={handleGenerateVariations}
               disabled={isLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/10 text-white rounded-full text-sm font-medium hover:bg-white/20 transition-all touch-manipulation disabled:opacity-50"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/10 text-white rounded-full text-sm font-medium hover:bg-white/20 transition-all touch-manipulation disabled:opacity-50"
             >
               <Sparkles className="w-4 h-4" /> Variations
             </button>
             <button
               onClick={handleShowCode}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/10 text-white rounded-full text-sm font-medium hover:bg-white/20 transition-all touch-manipulation"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/10 text-white rounded-full text-sm font-medium hover:bg-white/20 transition-all touch-manipulation"
             >
               <Code className="w-4 h-4" /> Code
+            </button>
+            <button
+              onClick={handleShowDownload}
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-brand-gold text-black rounded-full text-sm font-medium hover:bg-brand-gold/90 transition-all touch-manipulation"
+            >
+              <Download className="w-4 h-4" /> Download
             </button>
           </div>
         </div>
@@ -579,7 +805,7 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
               <span className="animate-fadeIn" key={placeholderIndex}>
                 {INITIAL_PLACEHOLDERS[placeholderIndex]}
               </span>
-              <span className="text-[10px] uppercase bg-white/10 px-2 py-0.5 rounded font-medium">Tab</span>
+              <span className="text-[10px] uppercase bg-white/10 px-2 py-0.5 rounded font-medium hidden sm:inline">Tab</span>
             </div>
           )}
 
@@ -613,7 +839,7 @@ const FlashUIModule: React.FC<FlashUIModuleProps> = ({ user }) => {
 
       {/* Keyboard hint */}
       {!isLoading && hasStarted && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-gray-600">
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-gray-600 hidden sm:block">
           Enter to generate • Tab to use suggestion
         </div>
       )}
