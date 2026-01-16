@@ -20,6 +20,8 @@ import { UserProfile } from './types.ts';
 import { useDataStore } from './hooks/useDataStore.ts';
 import { appStore } from './services/appStore.ts';
 
+const USER_PROFILE_KEY = 'agency_user_profile';
+
 const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [activeModule, setActiveModule] = useState('dashboard');
@@ -31,7 +33,7 @@ const App: React.FC = () => {
   const dataStore = useDataStore();
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('agency_user_profile');
+    const savedUser = localStorage.getItem(USER_PROFILE_KEY);
     if (savedUser) {
       try {
         const parsed = JSON.parse(savedUser);
@@ -53,7 +55,7 @@ const App: React.FC = () => {
         }
       } catch (e) {
         console.error("Failed to parse user profile", e);
-        localStorage.removeItem('agency_user_profile');
+        localStorage.removeItem(USER_PROFILE_KEY);
       }
     }
   }, []);
@@ -85,7 +87,7 @@ const App: React.FC = () => {
       themeMode: 'dark',
     };
 
-    localStorage.setItem('agency_user_profile', JSON.stringify(userProfile));
+    localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(userProfile));
     setUserProfile(userProfile);
     setShowLogin(false);
     setActiveModule('dashboard');
@@ -122,7 +124,7 @@ const App: React.FC = () => {
     }
 
     // Force immediate transition
-    localStorage.setItem('agency_user_profile', JSON.stringify(newUser));
+    localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(newUser));
     setUserProfile(newUser);
     setShowIntake(false);
     setActiveModule('dashboard');
@@ -221,7 +223,7 @@ const App: React.FC = () => {
         setCollapsed={setSidebarCollapsed}
         onLogout={() => {
           appStore.logout();
-          localStorage.removeItem('agency_user_profile');
+          localStorage.removeItem(USER_PROFILE_KEY);
           setUserProfile(null);
           setActiveModule('dashboard');
         }}
