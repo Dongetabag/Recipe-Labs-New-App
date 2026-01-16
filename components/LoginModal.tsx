@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { X, LogIn, Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
-import { authService } from '../services/authService.ts';
+import React, { useState, useEffect } from 'react';
+import { X, LogIn, Mail, Lock, AlertCircle, Eye, EyeOff, Users } from 'lucide-react';
+import { appStore } from '../services/appStore.ts';
 
 interface LoginModalProps {
   show: boolean;
@@ -15,6 +15,16 @@ const LoginModal: React.FC<LoginModalProps> = ({ show, onClose, onSuccess, onSwi
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [registeredUsers, setRegisteredUsers] = useState<{name: string, email: string, avatar?: string}[]>([]);
+  const [showUserList, setShowUserList] = useState(false);
+
+  useEffect(() => {
+    if (show) {
+      // Load registered users for quick access
+      const users = appStore.getUsers();
+      setRegisteredUsers(users.map(u => ({ name: u.name, email: u.email, avatar: u.avatar })));
+    }
+  }, [show]);
 
   if (!show) return null;
 
@@ -23,33 +33,23 @@ const LoginModal: React.FC<LoginModalProps> = ({ show, onClose, onSuccess, onSwi
     setError(null);
     setIsLoading(true);
 
-    try {
-      const result = await authService.login(email, password);
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-      if (result.success && result.user) {
-        // Get profile data from backend
-        const profiles = await authService.getAllProfiles();
-        const settings = profiles.settings || {};
+    const result = appStore.login(email, password);
 
-        const userData = {
-          id: result.user.id,
-          email: result.user.email,
-          name: result.user.name || email.split('@')[0],
-          role: settings.role || 'Team Member',
-          avatar: result.user.avatar_url,
-          agencyCoreCompetency: settings.agency_core_competency,
-          primaryClientIndustry: settings.primary_client_industry,
-          ...settings
-        };
-        onSuccess(userData);
-      } else {
-        setError(result.error || 'Login failed. Please try again.');
-      }
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred.');
+    if (result.success && result.user) {
+      onSuccess(result.user);
+    } else {
+      setError(result.error || 'Login failed. Please try again.');
     }
 
     setIsLoading(false);
+  };
+
+  const handleQuickLogin = (userEmail: string) => {
+    setEmail(userEmail);
+    setShowUserList(false);
   };
 
   return (
@@ -79,6 +79,43 @@ const LoginModal: React.FC<LoginModalProps> = ({ show, onClose, onSuccess, onSwi
             <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-sm animate-shake">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {/* Quick User Select */}
+          {registeredUsers.length > 0 && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowUserList(!showUserList)}
+                className="flex items-center gap-2 text-xs text-brand-gold hover:text-brand-gold/80 transition-colors"
+              >
+                <Users className="w-4 h-4" />
+                <span>{showUserList ? 'Hide' : 'Show'} team members ({registeredUsers.length})</span>
+              </button>
+
+              {showUserList && (
+                <div className="bg-white/5 rounded-xl p-2 max-h-40 overflow-y-auto space-y-1">
+                  {registeredUsers.map((user, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handleQuickLogin(user.email)}
+                      className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors text-left"
+                    >
+                      <img
+                        src={user.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}`}
+                        alt={user.name}
+                        className="w-8 h-8 rounded-full bg-brand-gold/20"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white truncate">{user.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
