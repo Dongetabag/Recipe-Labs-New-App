@@ -5,7 +5,7 @@ import {
   TrendingUp, FileText, Zap, Slack, Database, Settings2,
   CheckCircle, XCircle, Loader2, Briefcase, Target, Users,
   BarChart3, Lightbulb, PenTool, MessageCircle, Award,
-  Plus, Trash2, MessageSquare, MoreVertical, X, Edit3
+  Plus, Trash2, MessageSquare, MoreVertical, X, Edit3, Menu
 } from 'lucide-react';
 import { mcpClient, MCPTool } from '../services/mcpClient.ts';
 
@@ -152,6 +152,7 @@ const AIToolsModule: React.FC<AIToolsModuleProps> = ({ user }) => {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -198,6 +199,7 @@ const AIToolsModule: React.FC<AIToolsModuleProps> = ({ user }) => {
     };
     setSessions(prev => [newSession, ...prev]);
     setActiveSessionId(newSession.id);
+    setShowMobileSidebar(false);
   }, []);
 
   // Delete a chat session
@@ -453,13 +455,32 @@ Would you like me to dig deeper into any of these metrics?`;
 
   const applyTemplate = (prompt: string) => {
     setInput(prompt);
+    setShowMobileSidebar(false);
     textareaRef.current?.focus();
+  };
+
+  const selectSession = (sessionId: string) => {
+    setActiveSessionId(sessionId);
+    setShowMobileSidebar(false);
   };
 
   return (
     <div className="flex h-full animate-fadeIn overflow-hidden bg-[#0a0a0a]">
+      {/* Mobile Sidebar Overlay */}
+      {showMobileSidebar && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 md:hidden"
+          onClick={() => setShowMobileSidebar(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <div className="w-80 border-r border-white/5 flex flex-col bg-black/40">
+      <div className={`
+        fixed md:relative inset-y-0 left-0 z-50
+        w-[280px] sm:w-80 border-r border-white/5 flex flex-col bg-black/95 md:bg-black/40
+        transform transition-transform duration-300 ease-in-out
+        ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
         <div className="p-4 border-b border-white/5">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
@@ -471,16 +492,22 @@ Would you like me to dig deeper into any of these metrics?`;
                 <p className="text-[10px] text-gray-500">AI-Powered Agency Partner</p>
               </div>
             </div>
+            <button
+              onClick={() => setShowMobileSidebar(false)}
+              className="md:hidden p-2 text-gray-400 hover:text-white touch-manipulation"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
         {/* Chat Sessions */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain">
           {/* New Chat Button */}
           <div className="p-3 border-b border-white/5">
             <button
               onClick={createNewSession}
-              className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-brand-gold/10 hover:bg-brand-gold/20 border border-brand-gold/20 text-brand-gold transition-all"
+              className="w-full flex items-center justify-center gap-2 p-3 min-h-[48px] rounded-xl bg-brand-gold/10 hover:bg-brand-gold/20 active:scale-[0.98] border border-brand-gold/20 text-brand-gold transition-all touch-manipulation"
             >
               <Plus className="w-4 h-4" />
               <span className="text-sm font-medium">New Chat</span>
@@ -498,7 +525,7 @@ Would you like me to dig deeper into any of these metrics?`;
                 No chats yet. Start a new conversation!
               </div>
             ) : (
-              <div className="space-y-1 max-h-[300px] overflow-y-auto">
+              <div className="space-y-1 max-h-[300px] overflow-y-auto overscroll-contain">
                 {sessions.map((session) => (
                   <div
                     key={session.id}
@@ -520,7 +547,7 @@ Would you like me to dig deeper into any of these metrics?`;
                           }}
                           onBlur={() => renameSession(session.id, editTitle)}
                           autoFocus
-                          className="flex-1 bg-black/40 border border-white/20 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-brand-gold/50"
+                          className="flex-1 bg-black/40 border border-white/20 rounded px-2 py-2 text-sm text-white focus:outline-none focus:border-brand-gold/50 touch-manipulation"
                         />
                       </div>
                     ) : showDeleteConfirm === session.id ? (
@@ -529,13 +556,13 @@ Would you like me to dig deeper into any of these metrics?`;
                         <div className="flex gap-1">
                           <button
                             onClick={() => deleteSession(session.id)}
-                            className="px-2 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30"
+                            className="px-3 py-2 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 active:scale-95 touch-manipulation"
                           >
                             Delete
                           </button>
                           <button
                             onClick={() => setShowDeleteConfirm(null)}
-                            className="px-2 py-1 text-xs bg-white/10 text-gray-400 rounded hover:bg-white/20"
+                            className="px-3 py-2 text-xs bg-white/10 text-gray-400 rounded hover:bg-white/20 active:scale-95 touch-manipulation"
                           >
                             Cancel
                           </button>
@@ -543,8 +570,8 @@ Would you like me to dig deeper into any of these metrics?`;
                       </div>
                     ) : (
                       <button
-                        onClick={() => setActiveSessionId(session.id)}
-                        className="w-full p-3 text-left flex items-start gap-3"
+                        onClick={() => selectSession(session.id)}
+                        className="w-full p-3 min-h-[56px] text-left flex items-start gap-3 touch-manipulation"
                       >
                         <MessageSquare className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
                           activeSessionId === session.id ? 'text-brand-gold' : 'text-gray-500'
@@ -559,25 +586,25 @@ Would you like me to dig deeper into any of these metrics?`;
                             {session.messages.length} messages
                           </p>
                         </div>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setEditTitle(session.title);
                               setEditingSessionId(session.id);
                             }}
-                            className="p-1 text-gray-500 hover:text-white rounded"
+                            className="p-2 text-gray-500 hover:text-white rounded touch-manipulation"
                           >
-                            <Edit3 className="w-3 h-3" />
+                            <Edit3 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setShowDeleteConfirm(session.id);
                             }}
-                            className="p-1 text-gray-500 hover:text-red-400 rounded"
+                            className="p-2 text-gray-500 hover:text-red-400 rounded touch-manipulation"
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </button>
@@ -596,7 +623,7 @@ Would you like me to dig deeper into any of these metrics?`;
                 <button
                   key={template.id}
                   onClick={() => applyTemplate(template.prompt)}
-                  className="w-full flex items-center gap-2 p-2 rounded-lg text-left hover:bg-white/5 transition-colors group"
+                  className="w-full flex items-center gap-2 p-3 min-h-[48px] rounded-lg text-left hover:bg-white/5 active:scale-[0.98] transition-colors group touch-manipulation"
                 >
                   <div className="p-1.5 rounded-lg bg-white/5 text-gray-400 group-hover:text-brand-gold group-hover:bg-brand-gold/10 transition-colors">
                     {template.icon}
@@ -611,7 +638,7 @@ Would you like me to dig deeper into any of these metrics?`;
           <div className="border-t border-white/5 pt-4">
             <button
               onClick={() => setShowMcpPanel(!showMcpPanel)}
-              className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-colors"
+              className="w-full flex items-center justify-between p-3 min-h-[56px] rounded-lg hover:bg-white/5 active:scale-[0.98] transition-colors touch-manipulation"
             >
               <div className="flex items-center gap-3">
                 <div className={`p-2 rounded-lg ${mcpConnected ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
@@ -632,26 +659,26 @@ Would you like me to dig deeper into any of these metrics?`;
                 {/* Quick Commands */}
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => setInput('Show me our pipeline stats')}
-                    className="p-2 text-[10px] font-medium text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+                    onClick={() => { setInput('Show me our pipeline stats'); setShowMobileSidebar(false); }}
+                    className="p-3 min-h-[44px] text-[10px] font-medium text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 active:scale-95 rounded-lg transition-colors touch-manipulation"
                   >
                     Pipeline Stats
                   </button>
                   <button
-                    onClick={() => setInput('Get our latest leads')}
-                    className="p-2 text-[10px] font-medium text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+                    onClick={() => { setInput('Get our latest leads'); setShowMobileSidebar(false); }}
+                    className="p-3 min-h-[44px] text-[10px] font-medium text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 active:scale-95 rounded-lg transition-colors touch-manipulation"
                   >
                     View Leads
                   </button>
                   <button
-                    onClick={() => setInput('Check system health')}
-                    className="p-2 text-[10px] font-medium text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+                    onClick={() => { setInput('Check system health'); setShowMobileSidebar(false); }}
+                    className="p-3 min-h-[44px] text-[10px] font-medium text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 active:scale-95 rounded-lg transition-colors touch-manipulation"
                   >
                     System Health
                   </button>
                   <button
                     onClick={() => setShowMcpPanel(false)}
-                    className="p-2 text-[10px] font-medium text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors flex items-center justify-center gap-1"
+                    className="p-3 min-h-[44px] text-[10px] font-medium text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 active:scale-95 rounded-lg transition-colors flex items-center justify-center gap-1 touch-manipulation"
                   >
                     <Slack className="w-3 h-3" /> Slack
                   </button>
@@ -667,12 +694,12 @@ Would you like me to dig deeper into any of these metrics?`;
                       onChange={(e) => setSlackMessage(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSendSlack()}
                       placeholder="Type a message..."
-                      className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:border-brand-gold/50 focus:outline-none"
+                      className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-3 min-h-[44px] text-sm text-white placeholder-gray-600 focus:border-brand-gold/50 focus:outline-none touch-manipulation"
                     />
                     <button
                       onClick={handleSendSlack}
                       disabled={!slackMessage.trim() || sendingSlack}
-                      className="p-2 bg-[#4A154B] text-white rounded-lg hover:bg-[#611f69] disabled:opacity-50 transition-colors"
+                      className="p-3 min-w-[44px] min-h-[44px] bg-[#4A154B] text-white rounded-lg hover:bg-[#611f69] active:scale-95 disabled:opacity-50 transition-colors touch-manipulation"
                     >
                       {sendingSlack ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </button>
@@ -693,17 +720,24 @@ Would you like me to dig deeper into any of these metrics?`;
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="h-14 border-b border-white/5 flex items-center justify-between px-8 bg-black/40">
+        <div className="h-14 border-b border-white/5 flex items-center justify-between px-4 sm:px-8 bg-black/40">
           <div className="flex items-center gap-3">
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setShowMobileSidebar(true)}
+              className="md:hidden p-2 -ml-2 text-gray-400 hover:text-white active:scale-95 touch-manipulation"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
             <div className={`w-2 h-2 rounded-full ${isTyping ? 'bg-brand-gold animate-pulse' : 'bg-green-500'}`}></div>
-            <div>
-              <span className="text-sm font-medium text-white">
+            <div className="min-w-0">
+              <span className="text-sm font-medium text-white truncate block">
                 {isTyping ? 'Thinking...' : (activeSession?.title || 'New Chat')}
               </span>
               {activeSession && (
-                <span className="text-[10px] text-gray-500 ml-2">
+                <span className="text-[10px] text-gray-500 hidden sm:inline">
                   {history.length}/{MAX_MESSAGES_PER_CHAT} messages
                 </span>
               )}
@@ -711,7 +745,7 @@ Would you like me to dig deeper into any of these metrics?`;
           </div>
           <div className="flex items-center gap-4">
             {mcpConnected && (
-              <span className="flex items-center gap-2 text-[10px] text-green-500">
+              <span className="hidden sm:flex items-center gap-2 text-[10px] text-green-500">
                 <CheckCircle className="w-3 h-3" />
                 Systems Online
               </span>
@@ -720,26 +754,26 @@ Would you like me to dig deeper into any of these metrics?`;
         </div>
 
         {/* Messages */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain">
           {history.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center px-8">
+            <div className="h-full flex flex-col items-center justify-center text-center px-4 sm:px-8">
               <div className="max-w-xl space-y-6">
-                <div className="w-16 h-16 mx-auto rounded-2xl bg-brand-gold/10 border border-brand-gold/20 flex items-center justify-center">
-                  <Bot className="w-8 h-8 text-brand-gold" />
+                <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto rounded-2xl bg-brand-gold/10 border border-brand-gold/20 flex items-center justify-center">
+                  <Bot className="w-7 h-7 sm:w-8 sm:h-8 text-brand-gold" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white mb-2">How can I help you today?</h3>
-                  <p className="text-sm text-gray-400 leading-relaxed">
+                  <h3 className="text-lg sm:text-xl font-bold text-white mb-2">How can I help you today?</h3>
+                  <p className="text-xs sm:text-sm text-gray-400 leading-relaxed">
                     I'm your Recipe Labs executive assistant with 25 years of agency experience.
                     Whether you need help with a pitch, strategy, creative direction, or operations—I'm here.
                   </p>
                 </div>
                 <div className="flex flex-wrap justify-center gap-2">
-                  {['Prepare a pitch', 'Review campaign metrics', 'Draft client email', 'Analyze competition'].map((suggestion) => (
+                  {['Prepare a pitch', 'Review metrics', 'Draft email', 'Analyze competition'].map((suggestion) => (
                     <button
                       key={suggestion}
                       onClick={() => setInput(`Help me ${suggestion.toLowerCase()}`)}
-                      className="px-4 py-2 text-sm text-gray-400 bg-white/5 hover:bg-white/10 hover:text-white border border-white/10 rounded-full transition-colors"
+                      className="px-3 sm:px-4 py-2 min-h-[40px] text-xs sm:text-sm text-gray-400 bg-white/5 hover:bg-white/10 hover:text-white active:scale-95 border border-white/10 rounded-full transition-colors touch-manipulation"
                     >
                       {suggestion}
                     </button>
@@ -748,9 +782,9 @@ Would you like me to dig deeper into any of these metrics?`;
               </div>
             </div>
           ) : (
-            <div className="p-8 space-y-8">
+            <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
               {history.map((msg, i) => (
-                <div key={i} className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                <div key={i} className={`flex gap-3 sm:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
                     msg.role === 'user'
                       ? 'bg-white/10 text-white'
@@ -758,13 +792,13 @@ Would you like me to dig deeper into any of these metrics?`;
                   }`}>
                     {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                   </div>
-                  <div className={`max-w-2xl ${msg.role === 'user' ? 'text-right' : ''}`}>
-                    <div className={`inline-block p-4 rounded-2xl text-sm leading-relaxed ${
+                  <div className={`max-w-[85%] sm:max-w-2xl ${msg.role === 'user' ? 'text-right' : ''}`}>
+                    <div className={`inline-block p-3 sm:p-4 rounded-2xl text-sm leading-relaxed ${
                       msg.role === 'user'
                         ? 'bg-white/10 text-white rounded-tr-sm'
                         : 'bg-white/5 text-gray-200 rounded-tl-sm'
                     }`}>
-                      <div className="whitespace-pre-wrap">{msg.text}</div>
+                      <div className="whitespace-pre-wrap break-words">{msg.text}</div>
                     </div>
                     <div className={`mt-1 text-[10px] text-gray-600 ${msg.role === 'user' ? 'text-right' : ''}`}>
                       {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
@@ -774,7 +808,7 @@ Would you like me to dig deeper into any of these metrics?`;
               ))}
 
               {isTyping && (
-                <div className="flex gap-4">
+                <div className="flex gap-3 sm:gap-4">
                   <div className="w-8 h-8 rounded-xl bg-brand-gold/10 flex items-center justify-center text-brand-gold">
                     <Bot className="w-4 h-4" />
                   </div>
@@ -792,9 +826,9 @@ Would you like me to dig deeper into any of these metrics?`;
         </div>
 
         {/* Input Area */}
-        <div className="p-6 border-t border-white/5 bg-black/40">
+        <div className="p-3 sm:p-6 border-t border-white/5 bg-black/40">
           <div className="max-w-3xl mx-auto">
-            <div className="flex items-end gap-3 bg-white/5 border border-white/10 rounded-2xl p-3 focus-within:border-brand-gold/30 transition-colors">
+            <div className="flex items-end gap-2 sm:gap-3 bg-white/5 border border-white/10 rounded-2xl p-2 sm:p-3 focus-within:border-brand-gold/30 transition-colors">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -806,13 +840,13 @@ Would you like me to dig deeper into any of these metrics?`;
                   }
                 }}
                 placeholder="Ask anything..."
-                className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 resize-none focus:outline-none min-h-[24px] max-h-[200px]"
+                className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 resize-none focus:outline-none min-h-[24px] max-h-[200px] touch-manipulation"
                 rows={1}
               />
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <button
                   onClick={clearCurrentChat}
-                  className="p-2 text-gray-500 hover:text-white transition-colors"
+                  className="p-2 sm:p-2 min-w-[40px] min-h-[40px] text-gray-500 hover:text-white active:scale-95 transition-colors touch-manipulation"
                   title="Clear current chat"
                 >
                   <Eraser className="w-4 h-4" />
@@ -820,13 +854,13 @@ Would you like me to dig deeper into any of these metrics?`;
                 <button
                   onClick={handleSend}
                   disabled={!input.trim() || isTyping}
-                  className="p-2 bg-brand-gold text-black rounded-lg hover:bg-brand-gold/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 sm:p-2 min-w-[40px] min-h-[40px] bg-brand-gold text-black rounded-lg hover:bg-brand-gold/90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation"
                 >
                   <Send className="w-4 h-4" />
                 </button>
               </div>
             </div>
-            <div className="flex items-center justify-between mt-2 px-1">
+            <div className="hidden sm:flex items-center justify-between mt-2 px-1">
               <span className="text-[10px] text-gray-600 flex items-center gap-1">
                 <Command className="w-3 h-3" /> Enter to send • Shift+Enter for new line
               </span>
