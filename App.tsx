@@ -14,6 +14,7 @@ import TeamModule from './components/TeamModule.tsx';
 import ReportsModule from './components/ReportsModule.tsx';
 import IntegrationsModule from './components/IntegrationsModule.tsx';
 import SettingsModule from './components/SettingsModule.tsx';
+import FlashUIModule from './components/FlashUIModule.tsx';
 import IntakeModal, { IntakeData } from './components/IntakeModal.tsx';
 import LoginModal from './components/LoginModal.tsx';
 import { UserProfile } from './types.ts';
@@ -252,6 +253,7 @@ const App: React.FC = () => {
         return <TeamModule />;
       case 'reports': return <ReportsModule />;
       case 'integrations': return <IntegrationsModule />;
+      case 'flash-ui': return <FlashUIModule user={userProfile} />;
       case 'settings': return <SettingsModule user={userProfile} onUpdate={setUserProfile} />;
       default:
         return (

@@ -1,9 +1,10 @@
 import React from 'react';
 import {
-  Home, Users, Briefcase, Mail, MessageSquare, Palette, Folder, Layout, BarChart, Settings, Search, Plus, Zap,
+  Wand2, Home, Users, Briefcase, Mail, MessageSquare, Palette, Folder, Layout, BarChart, Settings, Search, Plus, Zap,
   Compass, Sparkles, Target, Brain, FlaskConical, ClipboardList, PenTool, FileText, Share2, Award, Zap as ZapIcon, Eye, MousePointer2, TrendingUp, Presentation, Users2, Send
 } from 'lucide-react';
-import { Tool, Recipe } from './types.ts';
+import {
+  Tool, Recipe } from './types.ts';
 
 export const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: <Home className="w-5 h-5" /> },
@@ -17,6 +18,7 @@ export const NAV_ITEMS = [
   { id: 'team', label: 'Team', icon: <Users2 className="w-5 h-5" /> },
   { id: 'reports', label: 'Reports', icon: <BarChart className="w-5 h-5" /> },
   { id: 'integrations', label: 'Integrations', icon: <Zap className="w-5 h-5" /> },
+  { id: 'flash-ui', label: 'Flash UI', icon: <Wand2 className="w-5 h-5" /> },
   { id: 'settings', label: 'Settings', icon: <Settings className="w-5 h-5" /> },
 ];
 
